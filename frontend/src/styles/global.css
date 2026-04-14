@@ -160,10 +160,59 @@ body {
   gap: 0.5rem;
 }
 
-.filter-bar {
+.page-header-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.meta-editor {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
   margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.meta-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.meta-editor input,
+.meta-editor select {
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.filter-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--color-surface);
 }
 
 /* ── Login ──────────────────────────────── */
@@ -415,14 +464,18 @@ body {
   gap: 0.5rem;
 }
 
+.item-row-wrap {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
 .item-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.75rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
 }
 
 .item-num {
@@ -433,6 +486,116 @@ body {
 
 .item-question {
   flex: 1;
+}
+
+.item-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* ── Item editor ───────────────────────── */
+
+.item-editor {
+  padding: 1rem;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.item-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.item-editor input[type="text"],
+.item-editor input[type="number"],
+.item-editor input:not([type]) {
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+}
+
+.item-editor fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item-editor legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 0 0.25rem;
+}
+
+.editor-option-row,
+.editor-pair-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.editor-option-row input[type="text"],
+.editor-option-row input:not([type]),
+.editor-pair-row input {
+  flex: 1;
+}
+
+.editor-radio {
+  flex-shrink: 0;
+  width: auto;
+}
+
+.editor-radio-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+
+.editor-pair-arrow {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.editor-order-num {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  min-width: 1.5rem;
+  flex-shrink: 0;
+}
+
+.editor-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+
+.editor-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.add-item-section {
+  margin-top: 1.5rem;
+}
+
+.add-item-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 /* ── Lesson ─────────────────────────────── */
@@ -561,6 +724,14 @@ body {
   background: var(--color-danger);
   color: white;
   border-color: var(--color-danger);
+}
+
+.flashcard-answer {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 1.5rem;
 }
 
 .flashcard-prompt {
@@ -707,8 +878,14 @@ body {
   color: var(--color-danger);
 }
 
+.feedback-given {
+  margin: 0.75rem 0;
+  color: var(--color-danger);
+}
+
 .feedback-answer {
   margin: 0.75rem 0;
+  color: var(--color-success);
 }
 
 .feedback-explanation {
