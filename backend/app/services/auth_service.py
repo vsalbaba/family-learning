@@ -1,21 +1,19 @@
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def hash_pin(pin: str) -> str:
-    return pwd_context.hash(pin)
+    return bcrypt.hashpw(pin.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_pin(pin: str, hashed: str) -> bool:
-    return pwd_context.verify(pin, hashed)
+    return bcrypt.checkpw(pin.encode(), hashed.encode())
 
 
 def create_token(user_id: int, role: str) -> str:
