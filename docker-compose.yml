@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   backend:
     build: ./backend
@@ -11,6 +9,8 @@ services:
       - DATABASE_URL=sqlite:///data/family_learning.db
       - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
       - PARENT_PIN=${PARENT_PIN:-1234}
+    networks:
+      - app-net
     restart: unless-stopped
 
   frontend:
@@ -19,7 +19,12 @@ services:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:
       - backend
+    networks:
+      - app-net
     restart: unless-stopped
 
 volumes:
   app-data:
+
+networks:
+  app-net:
