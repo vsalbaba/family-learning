@@ -99,6 +99,16 @@ class TestFillIn:
                           {"accepted_answers": ["Praha"], "case_sensitive": False})
         assert check_answer(item, json.dumps({"text": "  Praha  "})) is True
 
+    def test_diacritics_ignored(self, db_session, published_package):
+        item = _make_item(db_session, published_package, "fill_in", "Capital?",
+                          {"accepted_answers": ["Déšť"], "case_sensitive": False})
+        assert check_answer(item, json.dumps({"text": "dest"})) is True
+
+    def test_diacritics_with_case_sensitive(self, db_session, published_package):
+        item = _make_item(db_session, published_package, "fill_in", "Capital?",
+                          {"accepted_answers": ["Praha"], "case_sensitive": True})
+        assert check_answer(item, json.dumps({"text": "praha"})) is False
+
 
 class TestMatching:
     def test_correct_pairs(self, db_session, published_package):
