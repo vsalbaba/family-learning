@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "name": "Minimal Package"
+  },
+  "items": [
+    {
+      "type": "true_false",
+      "question": "The sun is a star.",
+      "correct": true
+    }
+  ]
+}

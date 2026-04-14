@@ -1,0 +1,67 @@
+{
+  "metadata": {
+    "name": "Hlavní města Evropy",
+    "subject": "Zeměpis",
+    "difficulty": "easy",
+    "description": "Procvičování hlavních měst evropských států"
+  },
+  "items": [
+    {
+      "type": "multiple_choice",
+      "question": "Jaké je hlavní město Francie?",
+      "options": ["Londýn", "Paříž", "Berlín", "Madrid"],
+      "correct": 1,
+      "hint": "Město na řece Seině",
+      "explanation": "Paříž je hlavní město Francie."
+    },
+    {
+      "type": "true_false",
+      "question": "Hlavní město Německa je Mnichov.",
+      "correct": false,
+      "hint": "Bavorsko není celé Německo",
+      "explanation": "Hlavní město Německa je Berlín, ne Mnichov."
+    },
+    {
+      "type": "fill_in",
+      "question": "Hlavní město České republiky je ___.",
+      "accepted_answers": ["Praha", "prague"],
+      "case_sensitive": false,
+      "hint": "Město na Vltavě",
+      "explanation": "Praha je hlavní město České republiky."
+    },
+    {
+      "type": "matching",
+      "question": "Spoj státy s jejich hlavními městy:",
+      "pairs": [
+        {"left": "Itálie", "right": "Řím"},
+        {"left": "Španělsko", "right": "Madrid"},
+        {"left": "Polsko", "right": "Varšava"}
+      ],
+      "hint": "Vzpomeň si na mapu Evropy",
+      "explanation": "Itálie - Řím, Španělsko - Madrid, Polsko - Varšava"
+    },
+    {
+      "type": "flashcard",
+      "question": "Jaké je hlavní město Portugalska?",
+      "answer": "Lisabon",
+      "hint": "Na pobřeží Atlantiku",
+      "explanation": "Lisabon je hlavní a největší město Portugalska."
+    },
+    {
+      "type": "ordering",
+      "question": "Seřaď tato hlavní města od západu na východ:",
+      "correct_order": ["Lisabon", "Madrid", "Paříž", "Berlín", "Varšava"],
+      "hint": "Začni na Pyrenejském poloostrově",
+      "explanation": "Lisabon → Madrid → Paříž → Berlín → Varšava"
+    },
+    {
+      "type": "math_input",
+      "question": "Kolik členských států má Evropská unie? (2024)",
+      "correct_value": 27,
+      "tolerance": 0,
+      "unit": "států",
+      "hint": "Velká Británie vystoupila v roce 2020",
+      "explanation": "EU má 27 členských států (po brexitu)."
+    }
+  ]
+}

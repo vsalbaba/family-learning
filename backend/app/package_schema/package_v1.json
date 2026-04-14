@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FamilyLearningPackage",
+  "type": "object",
+  "required": ["metadata", "items"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "subject": { "type": "string", "maxLength": 100 },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "description": { "type": "string", "maxLength": 1000 },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "version": { "type": "string" }
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["type", "question"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "flashcard", "multiple_choice", "true_false",
+              "fill_in", "matching", "ordering", "math_input"
+            ]
+          },
+          "question": { "type": "string", "minLength": 1 },
+          "hint": { "type": "string" },
+          "explanation": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "flashcard" } }, "required": ["type"] },
+            "then": {
+              "required": ["answer"],
+              "properties": {
+                "answer": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "multiple_choice" } }, "required": ["type"] },
+            "then": {
+              "required": ["options", "correct"],
+              "properties": {
+                "options": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+                "correct": { "type": "integer", "minimum": 0 }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "true_false" } }, "required": ["type"] },
+            "then": {
+              "required": ["correct"],
+              "properties": {
+                "correct": { "type": "boolean" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "fill_in" } }, "required": ["type"] },
+            "then": {
+              "required": ["accepted_answers"],
+              "properties": {
+                "accepted_answers": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "case_sensitive": { "type": "boolean" }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "matching" } }, "required": ["type"] },
+            "then": {
+              "required": ["pairs"],
+              "properties": {
+                "pairs": {
+                  "type": "array",
+                  "minItems": 2,
+                  "items": {
+                    "type": "object",
+                    "required": ["left", "right"],
+                    "properties": {
+                      "left": { "type": "string" },
+                      "right": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "ordering" } }, "required": ["type"] },
+            "then": {
+              "required": ["correct_order"],
+              "properties": {
+                "correct_order": { "type": "array", "minItems": 2, "items": { "type": "string" } }
+              }
+            }
+          },
+          {
+            "if": { "properties": { "type": { "const": "math_input" } }, "required": ["type"] },
+            "then": {
+              "required": ["correct_value"],
+              "properties": {
+                "correct_value": { "type": "number" },
+                "tolerance": { "type": "number", "minimum": 0 },
+                "unit": { "type": "string" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

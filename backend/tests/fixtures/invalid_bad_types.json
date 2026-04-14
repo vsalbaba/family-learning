@@ -1,0 +1,11 @@
+{
+  "metadata": {
+    "name": "Bad Types"
+  },
+  "items": [
+    {
+      "type": "quiz",
+      "question": "This has an invalid type"
+    }
+  ]
+}

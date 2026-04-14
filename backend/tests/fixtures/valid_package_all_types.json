@@ -1,0 +1,66 @@
+{
+  "metadata": {
+    "name": "Test Package - All Types",
+    "subject": "Test",
+    "difficulty": "easy",
+    "description": "A test package with all activity types"
+  },
+  "items": [
+    {
+      "type": "flashcard",
+      "question": "What is 2+2?",
+      "answer": "4",
+      "hint": "Simple addition",
+      "explanation": "2+2=4"
+    },
+    {
+      "type": "multiple_choice",
+      "question": "What color is the sky?",
+      "options": ["Red", "Blue", "Green"],
+      "correct": 1,
+      "hint": "Look up",
+      "explanation": "The sky is blue."
+    },
+    {
+      "type": "true_false",
+      "question": "Water boils at 100°C.",
+      "correct": true,
+      "hint": "At standard pressure",
+      "explanation": "Water boils at 100°C at sea level."
+    },
+    {
+      "type": "fill_in",
+      "question": "The capital of France is ___.",
+      "accepted_answers": ["Paris", "paris"],
+      "case_sensitive": false,
+      "hint": "City of Light",
+      "explanation": "Paris is the capital of France."
+    },
+    {
+      "type": "matching",
+      "question": "Match animals to their sounds:",
+      "pairs": [
+        {"left": "Dog", "right": "Bark"},
+        {"left": "Cat", "right": "Meow"},
+        {"left": "Cow", "right": "Moo"}
+      ],
+      "hint": "Think of farm animals",
+      "explanation": "Dog-Bark, Cat-Meow, Cow-Moo"
+    },
+    {
+      "type": "ordering",
+      "question": "Order from smallest to largest:",
+      "correct_order": ["Ant", "Mouse", "Cat", "Horse", "Elephant"],
+      "hint": "Think about animal sizes",
+      "explanation": "Ant < Mouse < Cat < Horse < Elephant"
+    },
+    {
+      "type": "math_input",
+      "question": "What is 15 × 3?",
+      "correct_value": 45,
+      "tolerance": 0,
+      "hint": "Multiply",
+      "explanation": "15 × 3 = 45"
+    }
+  ]
+}

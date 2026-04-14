@@ -1,0 +1,9 @@
+{
+  "items": [
+    {
+      "type": "true_false",
+      "question": "Test",
+      "correct": true
+    }
+  ]
+}

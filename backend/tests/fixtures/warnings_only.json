@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "name": "Warnings Only"
+  },
+  "items": [
+    {
+      "type": "true_false",
+      "question": "Test question 1",
+      "correct": true
+    },
+    {
+      "type": "true_false",
+      "question": "Test question 2",
+      "correct": false
+    }
+  ]
+}

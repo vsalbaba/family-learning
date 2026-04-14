@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "name": "MC Out of Bounds"
+  },
+  "items": [
+    {
+      "type": "multiple_choice",
+      "question": "Pick one:",
+      "options": ["A", "B", "C"],
+      "correct": 5
+    }
+  ]
+}
