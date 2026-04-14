@@ -1,15 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { login as apiLogin, setup as apiSetup } from "../../api/auth";
+import { login as apiLogin, setup as apiSetup, getSetupStatus } from "../../api/auth";
 import PinInput from "./PinInput";
 
-type Screen = "name" | "pin" | "setup-name" | "setup-pin";
+type Screen = "name" | "pin" | "setup-app-pin" | "setup-name" | "setup-pin";
 
 export default function LoginScreen() {
   const { setUser } = useAuth();
   const [screen, setScreen] = useState<Screen>("name");
   const [name, setName] = useState("");
+  const [appPin, setAppPin] = useState("");
   const [error, setError] = useState("");
+  const [parentExists, setParentExists] = useState(true);
+
+  useEffect(() => {
+    getSetupStatus().then((s) => setParentExists(s.parent_exists)).catch(() => {});
+  }, []);
 
   async function handleNameSubmit() {
     const trimmed = name.trim();
@@ -31,12 +37,35 @@ export default function LoginScreen() {
   async function handleSetupPin(pin: string) {
     setError("");
     try {
-      await apiSetup(name.trim(), pin);
+      await apiSetup(name.trim(), pin, appPin);
       const resp = await apiLogin(name.trim(), pin);
       setUser(resp.user, resp.token);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Chyba při vytváření účtu");
     }
+  }
+
+  // Setup flow: enter app PIN
+  if (screen === "setup-app-pin") {
+    return (
+      <div className="login-screen">
+        <div className="login-card">
+          <h1>Ověření</h1>
+          <p>Zadejte PIN aplikace:</p>
+          <PinInput
+            onComplete={(pin) => {
+              setAppPin(pin);
+              setError("");
+              setScreen("setup-name");
+            }}
+            error={error}
+          />
+          <button className="btn btn-secondary" onClick={() => { setScreen("name"); setError(""); }}>
+            Zpět
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Setup flow: enter parent name
@@ -105,14 +134,16 @@ export default function LoginScreen() {
           >
             Pokračovat
           </button>
-          <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
-            <button
-              className="btn btn-small btn-secondary"
-              onClick={() => setScreen("setup-name")}
-            >
-              Vytvořit nový účet
-            </button>
-          </p>
+          {!parentExists && (
+            <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>
+              <button
+                className="btn btn-small btn-secondary"
+                onClick={() => setScreen("setup-app-pin")}
+              >
+                Vytvořit nový účet
+              </button>
+            </p>
+          )}
           {error && <p className="pin-error">{error}</p>}
         </div>
       </div>

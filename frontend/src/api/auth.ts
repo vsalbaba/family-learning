@@ -1,8 +1,12 @@
 import { get, post } from "./client";
 import type { LoginResponse, User } from "../types/user";
 
-export function setup(name: string, pin: string) {
-  return post<User>("/auth/setup", { name, pin });
+export function getSetupStatus() {
+  return get<{ parent_exists: boolean }>("/auth/setup-status");
+}
+
+export function setup(name: string, pin: string, appPin: string) {
+  return post<User>("/auth/setup", { name, pin, app_pin: appPin });
 }
 
 export function login(name: string, pin: string) {

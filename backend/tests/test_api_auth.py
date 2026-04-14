@@ -7,14 +7,24 @@ from app.config import settings
 
 class TestSetup:
     def test_setup_creates_parent(self, client):
-        resp = client.post("/api/auth/setup", json={"name": "Rodič", "pin": "1234"})
+        resp = client.post("/api/auth/setup", json={
+            "name": "Rodič", "pin": "1234", "app_pin": settings.parent_pin,
+        })
         assert resp.status_code == 200
         data = resp.json()
         assert data["name"] == "Rodič"
         assert data["role"] == "parent"
 
+    def test_setup_wrong_app_pin(self, client):
+        resp = client.post("/api/auth/setup", json={
+            "name": "Rodič", "pin": "1234", "app_pin": "9999",
+        })
+        assert resp.status_code == 403
+
     def test_setup_idempotent(self, client, parent_user):
-        resp = client.post("/api/auth/setup", json={"name": "Another", "pin": "5678"})
+        resp = client.post("/api/auth/setup", json={
+            "name": "Another", "pin": "5678", "app_pin": settings.parent_pin,
+        })
         assert resp.status_code == 409
 
 
@@ -29,6 +39,11 @@ class TestLogin:
     def test_login_wrong_pin(self, client, parent_user):
         resp = client.post("/api/auth/login", json={"name": "Rodič", "pin": "9999"})
         assert resp.status_code == 401
+
+    def test_login_case_insensitive(self, client, parent_user):
+        resp = client.post("/api/auth/login", json={"name": "rodič", "pin": "1234"})
+        assert resp.status_code == 200
+        assert resp.json()["user"]["name"] == "Rodič"
 
     def test_login_unknown_user(self, client, parent_user):
         resp = client.post("/api/auth/login", json={"name": "Nobody", "pin": "1234"})

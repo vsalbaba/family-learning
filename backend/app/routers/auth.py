@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import LoginRequest, LoginResponse, SetupRequest, UserResponse
+from app.config import settings
 from app.services.auth_service import (
     authenticate,
     create_token,
@@ -50,8 +51,19 @@ def require_child(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+@router.get("/setup-status")
+def setup_status(db: Session = Depends(get_db)):
+    existing = get_parent(db)
+    return {"parent_exists": existing is not None}
+
+
 @router.post("/setup", response_model=UserResponse)
 def setup(req: SetupRequest, db: Session = Depends(get_db)):
+    if req.app_pin != settings.parent_pin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nesprávný PIN aplikace",
+        )
     existing = get_parent(db)
     if existing:
         raise HTTPException(

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class SetupRequest(BaseModel):
     name: str
     pin: str
+    app_pin: str
 
 
 class LoginRequest(BaseModel):

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 import bcrypt
 from jose import JWTError, jwt
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -45,7 +46,7 @@ def setup_parent(db: Session, name: str, pin: str) -> User:
 
 
 def authenticate(db: Session, name: str, pin: str) -> User | None:
-    user = db.query(User).filter(User.name == name).first()
+    user = db.query(User).filter(func.lower(User.name) == name.lower()).first()
     if user and verify_pin(pin, user.pin_hash):
         return user
     return None
