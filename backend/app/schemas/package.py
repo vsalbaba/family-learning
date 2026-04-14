@@ -51,6 +51,30 @@ class PackageDetailResponse(PackageResponse):
     items: list[ItemResponse] = []
 
 
+class PackageUpdateRequest(BaseModel):
+    name: str | None = None
+    subject: str | None = None
+    difficulty: str | None = None
+    description: str | None = None
+
+
+class ItemUpdateRequest(BaseModel):
+    question: str | None = None
+    answer_data: str | None = None  # JSON string
+    hint: str | None = None
+    explanation: str | None = None
+    tags: str | None = None
+
+
+class ItemCreateRequest(BaseModel):
+    activity_type: str
+    question: str
+    answer_data: str  # JSON string
+    hint: str | None = None
+    explanation: str | None = None
+    tags: str | None = None
+
+
 class PackageImportRequest(BaseModel):
     content: str  # raw JSON string
 

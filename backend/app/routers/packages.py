@@ -9,10 +9,13 @@ from app.models.package import Item, Package
 from app.models.user import User
 from app.routers.auth import get_current_user, require_parent
 from app.schemas.package import (
+    ItemCreateRequest,
+    ItemUpdateRequest,
     PackageDetailResponse,
     PackageImportRequest,
     PackageImportResponse,
     PackageResponse,
+    PackageUpdateRequest,
     ItemResponse,
     ValidationResult as ValidationResultSchema,
     ValidationError as ValidationErrorSchema,
@@ -190,6 +193,30 @@ def get_package(
     return resp
 
 
+@router.put("/{package_id}", response_model=PackageResponse)
+def update_package(
+    package_id: int,
+    req: PackageUpdateRequest,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    pkg = db.query(Package).filter(Package.id == package_id).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
+    if req.name is not None:
+        pkg.name = req.name
+    if req.subject is not None:
+        pkg.subject = req.subject
+    if req.difficulty is not None:
+        pkg.difficulty = req.difficulty
+    if req.description is not None:
+        pkg.description = req.description
+    pkg.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pkg)
+    return _package_to_response(pkg)
+
+
 @router.post("/{package_id}/publish", response_model=PackageResponse)
 def publish_package(
     package_id: int,
@@ -199,13 +226,24 @@ def publish_package(
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
-    if pkg.status not in ("draft", "ready"):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot publish package in '{pkg.status}' status",
-        )
     pkg.status = "published"
     pkg.published_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(pkg)
+    return _package_to_response(pkg)
+
+
+@router.post("/{package_id}/unpublish", response_model=PackageResponse)
+def unpublish_package(
+    package_id: int,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    pkg = db.query(Package).filter(Package.id == package_id).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
+    pkg.status = "draft"
+    pkg.published_at = None
     db.commit()
     db.refresh(pkg)
     return _package_to_response(pkg)
@@ -295,3 +333,92 @@ def revalidate_package(
     raw = json.dumps(export_data)
     result = validate_package(raw)
     return _validation_to_schema(result)
+
+
+VALID_ACTIVITY_TYPES = {
+    "flashcard", "multiple_choice", "true_false",
+    "fill_in", "matching", "ordering", "math_input",
+}
+
+
+@router.put("/{package_id}/items/{item_id}", response_model=ItemResponse)
+def update_item(
+    package_id: int,
+    item_id: int,
+    req: ItemUpdateRequest,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    item = (
+        db.query(Item)
+        .filter(Item.id == item_id, Item.package_id == package_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if req.question is not None:
+        item.question = req.question
+    if req.answer_data is not None:
+        item.answer_data = req.answer_data
+    if req.hint is not None:
+        item.hint = req.hint
+    if req.explanation is not None:
+        item.explanation = req.explanation
+    if req.tags is not None:
+        item.tags = req.tags
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/{package_id}/items", response_model=ItemResponse, status_code=201)
+def create_item(
+    package_id: int,
+    req: ItemCreateRequest,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    pkg = db.query(Package).filter(Package.id == package_id).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Package not found")
+    if req.activity_type not in VALID_ACTIVITY_TYPES:
+        raise HTTPException(status_code=422, detail=f"Unknown activity type: {req.activity_type}")
+    max_order = (
+        db.query(Item.sort_order)
+        .filter(Item.package_id == package_id)
+        .order_by(Item.sort_order.desc())
+        .first()
+    )
+    next_order = (max_order[0] + 1) if max_order else 0
+    item = Item(
+        package_id=package_id,
+        sort_order=next_order,
+        activity_type=req.activity_type,
+        question=req.question,
+        answer_data=req.answer_data,
+        hint=req.hint,
+        explanation=req.explanation,
+        tags=req.tags,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/{package_id}/items/{item_id}", status_code=204)
+def delete_item(
+    package_id: int,
+    item_id: int,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    item = (
+        db.query(Item)
+        .filter(Item.id == item_id, Item.package_id == package_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
