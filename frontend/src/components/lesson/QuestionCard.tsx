@@ -24,7 +24,7 @@ export default function QuestionCard({ question, onSubmit }: Props) {
       case "fill_in":
         return <FillIn onSubmit={onSubmit} />;
       case "flashcard":
-        return <Flashcard onSubmit={onSubmit} />;
+        return <Flashcard answerData={answer_data} onSubmit={onSubmit} />;
       case "matching":
         return <Matching answerData={answer_data} onSubmit={onSubmit} />;
       case "ordering":

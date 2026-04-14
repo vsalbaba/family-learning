@@ -1,5 +1,6 @@
 import json
 import random
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -14,6 +15,12 @@ class Feedback:
     is_correct: bool
     correct_answer: str  # JSON string
     explanation: str | None
+
+
+def _normalize(text: str) -> str:
+    """Lowercase and strip diacritics (háčky, čárky) for lenient comparison."""
+    nfkd = unicodedata.normalize("NFKD", text.lower())
+    return "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
 
 
 def check_answer(item: Item, given_answer_json: str) -> bool:
@@ -38,7 +45,7 @@ def check_answer(item: Item, given_answer_json: str) -> bool:
         case_sensitive = answer_data.get("case_sensitive", False)
         if case_sensitive:
             return user_text in [a.strip() for a in accepted]
-        return user_text.lower() in [a.strip().lower() for a in accepted]
+        return _normalize(user_text) in [_normalize(a.strip()) for a in accepted]
 
     if activity == "matching":
         # given: list of {"left": ..., "right": ...}
@@ -103,8 +110,7 @@ def get_child_answer_data(item: Item) -> str:
     activity = item.activity_type
 
     if activity == "flashcard":
-        # Child sees question, then reveals answer
-        return json.dumps({})
+        return json.dumps({"answer": answer_data.get("answer", "")})
     if activity == "multiple_choice":
         return json.dumps({"options": answer_data.get("options", [])})
     if activity == "true_false":
@@ -194,8 +200,9 @@ def submit_answer(
         session.correct_count += 1
 
     # Check if lesson is complete
+    # Note: autoflush includes the just-added answer in the count
     answers_count = (
-        db.query(Answer).filter(Answer.session_id == session.id).count() + 1
+        db.query(Answer).filter(Answer.session_id == session.id).count()
     )
     if answers_count >= session.total_questions:
         session.finished_at = datetime.now(timezone.utc)

@@ -27,6 +27,7 @@ class AnswerRequest(BaseModel):
 class AnswerResponse(BaseModel):
     is_correct: bool
     correct_answer: str  # JSON — the correct answer for display
+    given_answer: str  # JSON — the child's answer for display
     explanation: str | None = None
     next_question: QuestionResponse | None = None  # None when lesson is done
 

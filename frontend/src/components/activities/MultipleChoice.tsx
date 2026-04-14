@@ -25,7 +25,7 @@ export default function MultipleChoice({ answerData, onSubmit }: Props) {
       <button
         className="btn btn-primary"
         disabled={selected === null}
-        onClick={() => onSubmit({ selected })}
+        onClick={() => onSubmit({ selected, selected_text: options[selected!] })}
       >
         Odpovědět
       </button>

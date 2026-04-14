@@ -123,6 +123,8 @@ export default function LessonRunner({ packageId }: Props) {
               isCorrect={feedback.is_correct}
               explanation={feedback.explanation}
               correctAnswer={feedback.correct_answer}
+              givenAnswer={feedback.given_answer}
+              activityType={question.activity_type}
               onContinue={handleContinue}
             />
           )}

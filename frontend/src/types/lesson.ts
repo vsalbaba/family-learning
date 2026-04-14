@@ -13,6 +13,7 @@ export interface Question {
 export interface AnswerResponse {
   is_correct: boolean;
   correct_answer: string;
+  given_answer: string;
   explanation: string | null;
   next_question: Question | null;
 }

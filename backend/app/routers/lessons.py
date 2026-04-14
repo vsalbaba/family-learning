@@ -106,6 +106,7 @@ def lesson_answer(
     return AnswerResponse(
         is_correct=feedback.is_correct,
         correct_answer=feedback.correct_answer,
+        given_answer=req.given_answer,
         explanation=feedback.explanation,
         next_question=next_question,
     )
