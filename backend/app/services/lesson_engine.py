@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 import unicodedata
 from dataclasses import dataclass
@@ -7,7 +8,34 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
+from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
+from app.services.spaced_repetition import get_or_create_review, update_review
+
+logger = logging.getLogger(__name__)
+
+# ── Tuning constants (iteration 1 defaults) ────────────────────
+REVIEW_MAX_RATIO = 0.4
+NEW_TARGET_RATIO = 0.4
+ANTI_REPEAT_HARD_HOURS = 6
+ANTI_REPEAT_SOFT_HOURS = 24
+ANTI_REPEAT_HARD_PENALTY = 1000
+ANTI_REPEAT_SOFT_PENALTY = 200
+LEARNING_EASE_WEIGHT = 100
+LEARNING_OVERDUE_BONUS = 50
+DUE_OVERDUE_HOURS_WEIGHT = 2
+DUE_OVERDUE_MAX_SCORE = 200
+DUE_EASE_WEIGHT = 40
+NOT_DUE_EASE_WEIGHT = 20
+
+# Explicit budget table for known lesson sizes: (review_max, new_target, filler)
+_BUDGET_TABLE: dict[int, tuple[int, int, int]] = {
+    3: (1, 1, 1),
+    5: (2, 2, 1),
+    7: (3, 3, 1),
+    10: (4, 4, 2),
+    20: (8, 8, 4),
+}
 
 
 @dataclass
@@ -142,6 +170,160 @@ def get_child_answer_data(item: Item) -> str:
     return "{}"
 
 
+def _get_budget(count: int) -> tuple[int, int, int]:
+    """Return (review_max, new_target, filler_target) for a lesson of given size."""
+    if count in _BUDGET_TABLE:
+        return _BUDGET_TABLE[count]
+    review_max = round(count * REVIEW_MAX_RATIO)
+    new_target = round(count * NEW_TARGET_RATIO)
+    filler_target = count - review_max - new_target
+    return (review_max, new_target, filler_target)
+
+
+def _classify_and_score(
+    item: Item, rs: ReviewState | None, now: datetime, all_mode: bool
+) -> tuple[str, float]:
+    """Return (category, score) for an item based on its review state."""
+    if rs is None or rs.next_review_at is None:
+        score = -item.sort_order + random.uniform(0, 10)
+        return ("new", score)
+
+    recency_penalty = 0.0
+    if not all_mode and rs.last_reviewed_at:
+        hours_since = (now - rs.last_reviewed_at).total_seconds() / 3600
+        if hours_since < ANTI_REPEAT_HARD_HOURS:
+            recency_penalty = -ANTI_REPEAT_HARD_PENALTY
+        elif hours_since < ANTI_REPEAT_SOFT_HOURS:
+            recency_penalty = -ANTI_REPEAT_SOFT_PENALTY
+
+    if rs.status == "learning":
+        score = (2.5 - rs.ease_factor) * LEARNING_EASE_WEIGHT
+        if rs.next_review_at <= now:
+            score += LEARNING_OVERDUE_BONUS
+        score += random.uniform(0, 20) + recency_penalty
+        return ("learning", score)
+
+    if rs.next_review_at <= now:
+        overdue_hours = (now - rs.next_review_at).total_seconds() / 3600
+        score = min(DUE_OVERDUE_MAX_SCORE, overdue_hours * DUE_OVERDUE_HOURS_WEIGHT)
+        score += (2.5 - rs.ease_factor) * DUE_EASE_WEIGHT
+        score += random.uniform(0, 20) + recency_penalty
+        return ("due", score)
+
+    days_until = (rs.next_review_at - now).total_seconds() / 86400
+    score = -days_until
+    score += (2.5 - rs.ease_factor) * NOT_DUE_EASE_WEIGHT
+    score += random.uniform(0, 10) + recency_penalty
+    return ("not_due", score)
+
+
+def build_lesson_item_sequence(
+    db: Session, child_id: int, package_id: int, question_count: int
+) -> list[Item]:
+    """Select and order items for a lesson using progress-first heuristics."""
+    # Use naive UTC to match SQLite storage (which strips tzinfo)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    items = db.query(Item).filter(Item.package_id == package_id).all()
+    if not items:
+        return []
+
+    item_ids = [item.id for item in items]
+    reviews = (
+        db.query(ReviewState)
+        .filter(
+            ReviewState.child_id == child_id,
+            ReviewState.item_id.in_(item_ids),
+        )
+        .all()
+    )
+    review_map = {r.item_id: r for r in reviews}
+
+    count = min(question_count, len(items))
+    all_mode = question_count >= 999
+
+    # Classify into buckets
+    buckets: dict[str, list[tuple[float, Item]]] = {
+        "learning": [],
+        "due": [],
+        "new": [],
+        "not_due": [],
+    }
+    for item in items:
+        rs = review_map.get(item.id)
+        category, score = _classify_and_score(item, rs, now, all_mode)
+        buckets[category].append((score, item))
+
+    for cat in buckets:
+        buckets[cat].sort(key=lambda x: x[0], reverse=True)
+
+    # Mode 999: return everything ordered
+    if all_mode:
+        result: list[Item] = []
+        for cat in ["learning", "due", "new", "not_due"]:
+            result.extend(item for _, item in buckets[cat])
+        return result
+
+    # Budget allocation
+    review_max, new_target, filler_target = _get_budget(count)
+
+    learning_items = [it for _, it in buckets["learning"]]
+    due_items = [it for _, it in buckets["due"]]
+    review_pool = learning_items + due_items
+    new_pool = [it for _, it in buckets["new"]]
+    filler_pool = [it for _, it in buckets["not_due"]]
+
+    # Phase 1: fill by targets
+    review_selected = review_pool[:review_max]
+    new_selected = new_pool[:new_target]
+    filler_selected = filler_pool[:filler_target]
+
+    review_used = len(review_selected)
+    new_used = len(new_selected)
+    filler_used = len(filler_selected)
+
+    # Phase 2: redistribute unused slots
+    remaining = count - review_used - new_used - filler_used
+    if remaining > 0:
+        extra = new_pool[new_used : new_used + remaining]
+        new_selected.extend(extra)
+        new_used += len(extra)
+        remaining -= len(extra)
+    if remaining > 0:
+        extra = filler_pool[filler_used : filler_used + remaining]
+        filler_selected.extend(extra)
+        filler_used += len(extra)
+        remaining -= len(extra)
+    if remaining > 0:
+        extra = review_pool[review_used : review_used + remaining]
+        review_selected.extend(extra)
+        review_used += len(extra)
+
+    result = review_selected + new_selected + filler_selected
+
+    # Log actual selected counts + pool sizes
+    selected_learning = sum(1 for it in review_selected if it in learning_items)
+    selected_due = review_used - selected_learning
+    logger.info(
+        "lesson_mix child=%d pkg=%d "
+        "selected: learning=%d due=%d new=%d not_due=%d total=%d | "
+        "pools: learning=%d due=%d new=%d not_due=%d",
+        child_id,
+        package_id,
+        selected_learning,
+        selected_due,
+        new_used,
+        filler_used,
+        len(result),
+        len(buckets["learning"]),
+        len(buckets["due"]),
+        len(buckets["new"]),
+        len(buckets["not_due"]),
+    )
+
+    return result
+
+
 def start_lesson(
     db: Session, child_id: int, package_id: int, question_count: int
 ) -> tuple[LearningSession, Item | None]:
@@ -154,14 +336,13 @@ def start_lesson(
     if not items:
         raise ValueError("Package has no items")
 
-    count = min(question_count, len(items))
-    selected = random.sample(items, count)
+    selected = build_lesson_item_sequence(db, child_id, package_id, question_count)
     item_ids = [item.id for item in selected]
 
     session = LearningSession(
         child_id=child_id,
         package_id=package_id,
-        total_questions=count,
+        total_questions=len(selected),
         correct_count=0,
         item_ids=json.dumps(item_ids),
     )
@@ -210,6 +391,10 @@ def submit_answer(
     )
     if answers_count >= session.total_questions:
         session.finished_at = datetime.now(timezone.utc)
+
+    # Update spaced repetition state
+    review = get_or_create_review(db, session.child_id, item_id)
+    update_review(review, is_correct)
 
     db.commit()
 

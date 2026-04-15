@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
+from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.services.lesson_engine import (
@@ -290,3 +291,84 @@ class TestSessionLifecycle:
         db_session.commit()
         with pytest.raises(ValueError, match="not published"):
             start_lesson(db_session, child_user.id, pkg.id, 5)
+
+
+# ── Review state updates via submit_answer ──────────────────────
+
+
+class TestReviewStateUpdate:
+    def _make_simple_package(self, db: Session, parent: User, n: int = 3) -> Package:
+        pkg = Package(name="Simple", status="published", created_by=parent.id)
+        db.add(pkg)
+        db.flush()
+        for i in range(n):
+            db.add(Item(
+                package_id=pkg.id, sort_order=i, activity_type="true_false",
+                question=f"Q{i}", answer_data=json.dumps({"correct": True}),
+            ))
+        db.commit()
+        db.refresh(pkg)
+        return pkg
+
+    def test_submit_answer_creates_review_state(
+        self, db_session, child_user, parent_user
+    ):
+        pkg = self._make_simple_package(db_session, parent_user, 1)
+        session, first = start_lesson(db_session, child_user.id, pkg.id, 1)
+        submit_answer(db_session, session, first.id, json.dumps({"answer": True}), None)
+
+        rs = db_session.query(ReviewState).filter(
+            ReviewState.child_id == child_user.id,
+            ReviewState.item_id == first.id,
+        ).first()
+        assert rs is not None
+        assert rs.last_reviewed_at is not None
+
+    def test_submit_answer_correct_sets_known_path(
+        self, db_session, child_user, parent_user
+    ):
+        """3 correct answers → status 'known', interval grows."""
+        pkg = self._make_simple_package(db_session, parent_user, 1)
+        item = db_session.query(Item).filter(Item.package_id == pkg.id).first()
+
+        for _ in range(3):
+            session, first = start_lesson(db_session, child_user.id, pkg.id, 1)
+            submit_answer(db_session, session, item.id, json.dumps({"answer": True}), None)
+
+        rs = db_session.query(ReviewState).filter(
+            ReviewState.child_id == child_user.id,
+            ReviewState.item_id == item.id,
+        ).first()
+        assert rs.status == "known"
+        assert rs.repetitions == 3
+        assert rs.interval_days == 7
+
+    def test_submit_answer_wrong_sets_learning(
+        self, db_session, child_user, parent_user
+    ):
+        pkg = self._make_simple_package(db_session, parent_user, 1)
+        session, first = start_lesson(db_session, child_user.id, pkg.id, 1)
+        submit_answer(db_session, session, first.id, json.dumps({"answer": False}), None)
+
+        rs = db_session.query(ReviewState).filter(
+            ReviewState.child_id == child_user.id,
+            ReviewState.item_id == first.id,
+        ).first()
+        assert rs.status == "learning"
+        assert rs.interval_days == 0
+
+    def test_review_state_affects_next_lesson(
+        self, db_session, child_user, parent_user
+    ):
+        """After wrong answer, the item should appear in subsequent lessons in review slots."""
+        pkg = self._make_simple_package(db_session, parent_user, 10)
+        items = db_session.query(Item).filter(Item.package_id == pkg.id).all()
+
+        # First lesson: answer first item wrong
+        session, first = start_lesson(db_session, child_user.id, pkg.id, 1)
+        submit_answer(db_session, session, first.id, json.dumps({"answer": False}), None)
+
+        # Second lesson: the wrong item should appear (as learning)
+        session2, _ = start_lesson(db_session, child_user.id, pkg.id, 5)
+        item_ids = json.loads(session2.item_ids)
+        assert first.id in item_ids

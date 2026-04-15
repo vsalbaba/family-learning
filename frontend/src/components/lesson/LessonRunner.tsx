@@ -106,7 +106,19 @@ export default function LessonRunner({ packageId }: Props) {
   }
 
   if (state === "summary" && summary) {
-    return <LessonSummaryView summary={summary} packageId={packageId} />;
+    return (
+      <LessonSummaryView
+        summary={summary}
+        onRetry={() => {
+          setSummary(null);
+          setQuestion(null);
+          setFeedback(null);
+          setSessionId(0);
+          setError("");
+          setState("idle");
+        }}
+      />
+    );
   }
 
   return (
