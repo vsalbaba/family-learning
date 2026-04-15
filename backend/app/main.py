@@ -59,6 +59,16 @@ def _migrate_add_columns(eng):
             raw.execute(f"UPDATE user SET {col} = 0 WHERE {col} IS NULL")
         raw.commit()
 
+        # Session table: extension_count column
+        cursor = raw.execute("PRAGMA table_info(session)")
+        sess_columns = {row[1] for row in cursor.fetchall()}
+        if "extension_count" not in sess_columns:
+            raw.execute(
+                "ALTER TABLE session ADD COLUMN extension_count INTEGER NOT NULL DEFAULT 0"
+            )
+        raw.execute("UPDATE session SET extension_count = 0 WHERE extension_count IS NULL")
+        raw.commit()
+
 
 def _migrate_session_table(raw):
     """Rebuild session table: make package_id nullable, add subject column.

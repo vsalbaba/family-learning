@@ -26,6 +26,7 @@ class LearningSession(Base):
 
     # JSON list of item IDs in lesson order
     item_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    extension_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="session", cascade="all, delete-orphan"

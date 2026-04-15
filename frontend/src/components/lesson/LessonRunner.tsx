@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Question, AnswerResponse, LessonSummary } from "../../types/lesson";
-import { startLesson, submitAnswer, getLessonSummary } from "../../api/lessons";
+import { startLesson, submitAnswer, getLessonSummary, extendLesson } from "../../api/lessons";
 import { useAuth } from "../../contexts/AuthContext";
 import ProgressBar from "./ProgressBar";
 import QuestionCard from "./QuestionCard";
@@ -94,6 +94,21 @@ export default function LessonRunner({ packageId, subject }: Props) {
     }
   }
 
+  async function handleExtend() {
+    setState("loading");
+    try {
+      const resp = await extendLesson(sessionId);
+      setQuestion(resp.question);
+      setSummary(null);
+      setFeedback(null);
+      startTimeRef.current = Date.now();
+      setState("answering");
+    } catch (e: any) {
+      setError(e.message);
+      setState("summary");
+    }
+  }
+
   if (state === "idle") {
     return (
       <div className="lesson-start">
@@ -142,6 +157,7 @@ export default function LessonRunner({ packageId, subject }: Props) {
           setError("");
           setState("idle");
         }}
+        onExtend={handleExtend}
       />
     );
   }

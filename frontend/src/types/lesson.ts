@@ -54,4 +54,6 @@ export interface LessonSummary {
   started_at: string;
   finished_at: string | null;
   answers: AnswerDetail[];
+  extension_count: number;
+  can_extend: boolean;
 }

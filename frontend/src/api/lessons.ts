@@ -1,5 +1,5 @@
 import { get, post } from "./client";
-import type { AnswerResponse, LessonStartResponse, LessonSummary } from "../types/lesson";
+import type { AnswerResponse, LessonStartResponse, LessonSummary, Question } from "../types/lesson";
 
 export function startLesson(options: {
   packageId?: number;
@@ -38,4 +38,10 @@ export function submitAnswer(
 
 export function getLessonSummary(sessionId: number) {
   return get<LessonSummary>(`/lessons/${sessionId}/summary`);
+}
+
+export function extendLesson(sessionId: number) {
+  return post<{ question: Question; total_questions: number; extension_count: number }>(
+    `/lessons/${sessionId}/extend`
+  );
 }

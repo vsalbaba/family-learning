@@ -25,7 +25,7 @@ export default function RewardFeedback({ reward }: Props) {
       {reward.token_earned && (
         <span className="reward-token-earned">
           <TokenIcon size={22} />
-          Novy zeton!
+          Nový žeton!
         </span>
       )}
     </div>

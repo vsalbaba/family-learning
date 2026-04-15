@@ -59,6 +59,8 @@ class LessonSummaryResponse(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     answers: list["AnswerDetail"]
+    extension_count: int = 0
+    can_extend: bool = False
 
 
 class AnswerDetail(BaseModel):

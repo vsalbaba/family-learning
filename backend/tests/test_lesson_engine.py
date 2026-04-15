@@ -278,7 +278,7 @@ class TestSessionLifecycle:
         given = json.dumps({"knew": True}) if first.activity_type == "flashcard" else json.dumps({"answer": True})
         submit_answer(db_session, session, first.id, given, None)
         db_session.refresh(session)
-        with pytest.raises(ValueError, match="already finished"):
+        with pytest.raises(ValueError, match="již ukončena"):
             submit_answer(db_session, session, first.id, given, None)
 
     def test_cannot_start_lesson_unpublished_package(
@@ -292,7 +292,7 @@ class TestSessionLifecycle:
             question="Q", answer_data=json.dumps({"correct": True}),
         ))
         db_session.commit()
-        with pytest.raises(ValueError, match="not published"):
+        with pytest.raises(ValueError, match="není publikován"):
             start_lesson(db_session, child_user.id, pkg.id, 5)
 
 
@@ -455,7 +455,7 @@ class TestSubjectLesson:
     def test_start_subject_lesson_no_packages_raises(
         self, db_session, child_user, parent_user
     ):
-        with pytest.raises(ValueError, match="No published packages"):
+        with pytest.raises(ValueError, match="nejsou publikované balíčky"):
             start_subject_lesson(db_session, child_user.id, "nonexistent", 5)
 
     def test_start_subject_lesson_no_items_raises(
@@ -467,7 +467,7 @@ class TestSubjectLesson:
         )
         db_session.add(pkg)
         db_session.commit()
-        with pytest.raises(ValueError, match="No usable items"):
+        with pytest.raises(ValueError, match="nejsou dostupné otázky"):
             start_subject_lesson(db_session, child_user.id, "empty", 5)
 
     def test_subject_lesson_submit_answer_updates_review(

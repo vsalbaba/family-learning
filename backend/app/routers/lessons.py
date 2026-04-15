@@ -19,6 +19,8 @@ from app.schemas.session import (
     RewardInfo,
 )
 from app.services.lesson_engine import (
+    MAX_EXTENSIONS,
+    extend_session,
     get_child_answer_data,
     get_correct_answer_display,
     get_next_question_item,
@@ -76,15 +78,17 @@ def lesson_start(
     try:
         if req.package_id:
             session, first_item = start_lesson(
-                db, user.id, req.package_id, req.question_count
+                db, user.id, req.package_id, req.question_count,
+                child_user=user,
             )
         else:
             session, first_item = start_subject_lesson(
-                db, user.id, req.subject, req.question_count
+                db, user.id, req.subject, req.question_count,
+                child_user=user,
             )
     except ValueError as e:
         msg = str(e)
-        if "No published" in msg or "No usable" in msg:
+        if "nejsou publikované" in msg or "nejsou dostupné" in msg:
             code = status.HTTP_404_NOT_FOUND
         else:
             code = status.HTTP_403_FORBIDDEN
@@ -117,9 +121,9 @@ def lesson_answer(
         .first()
     )
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="Lekce nenalezena")
     if session.child_id != user.id:
-        raise HTTPException(status_code=403, detail="Not your session")
+        raise HTTPException(status_code=403, detail="Toto není tvoje lekce")
 
     try:
         feedback, reward_delta = submit_answer(
@@ -154,6 +158,42 @@ def lesson_answer(
     )
 
 
+@router.post("/{session_id}/extend")
+def lesson_extend(
+    session_id: int,
+    user: User = Depends(require_child),
+    db: Session = Depends(get_db),
+):
+    session = (
+        db.query(LearningSession)
+        .filter(LearningSession.id == session_id)
+        .first()
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Lekce nenalezena")
+    if session.child_id != user.id:
+        raise HTTPException(status_code=403, detail="Toto není tvoje lekce")
+
+    try:
+        first_item = extend_session(db, session)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    tts_lang = first_item.package.tts_lang if first_item and first_item.package else None
+    answered_count = (
+        db.query(Answer).filter(Answer.session_id == session.id).count()
+    )
+    question = _item_to_question(
+        first_item, answered_count, session.total_questions, tts_lang
+    )
+
+    return {
+        "question": question,
+        "total_questions": session.total_questions,
+        "extension_count": session.extension_count,
+    }
+
+
 @router.get("/{session_id}/summary", response_model=LessonSummaryResponse)
 def lesson_summary(
     session_id: int,
@@ -166,11 +206,11 @@ def lesson_summary(
         .first()
     )
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="Lekce nenalezena")
     if session.child_id != user.id:
-        raise HTTPException(status_code=403, detail="Not your session")
+        raise HTTPException(status_code=403, detail="Toto není tvoje lekce")
     if session.finished_at is None:
-        raise HTTPException(status_code=400, detail="Lesson is not finished yet")
+        raise HTTPException(status_code=400, detail="Lekce ještě není dokončena")
 
     answers = (
         db.query(Answer)
@@ -205,4 +245,6 @@ def lesson_summary(
         started_at=session.started_at,
         finished_at=session.finished_at,
         answers=details,
+        extension_count=session.extension_count,
+        can_extend=session.extension_count < MAX_EXTENSIONS,
     )

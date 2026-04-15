@@ -30,6 +30,9 @@ DUE_OVERDUE_MAX_SCORE = 200
 DUE_EASE_WEIGHT = 40
 NOT_DUE_EASE_WEIGHT = 20
 
+EXTENSION_QUESTION_COUNT = 10
+MAX_EXTENSIONS = 2
+
 # Explicit budget table for known lesson sizes: (review_max, new_target, filler)
 _BUDGET_TABLE: dict[int, tuple[int, int, int]] = {
     3: (1, 1, 1),
@@ -359,19 +362,29 @@ def build_subject_lesson_sequence(
 
 
 def start_lesson(
-    db: Session, child_id: int, package_id: int, question_count: int
+    db: Session, child_id: int, package_id: int, question_count: int,
+    child_user: User | None = None,
 ) -> tuple[LearningSession, Item | None]:
     """Start a new lesson session. Returns (session, first_question_item)."""
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package or package.status != "published":
-        raise ValueError("Package not found or not published")
+        raise ValueError("Balíček nenalezen nebo není publikován")
 
     items = db.query(Item).filter(Item.package_id == package_id).all()
     if not items:
-        raise ValueError("Package has no items")
+        raise ValueError("Balíček nemá žádné otázky")
 
     selected = build_lesson_item_sequence(db, child_id, package_id, question_count)
     item_ids = [item.id for item in selected]
+
+    # Close any active sessions for this child
+    db.query(LearningSession).filter(
+        LearningSession.child_id == child_id,
+        LearningSession.finished_at.is_(None),
+    ).update({"finished_at": datetime.now(timezone.utc)})
+
+    if child_user is not None:
+        child_user.reward_streak = 0
 
     session = LearningSession(
         child_id=child_id,
@@ -388,7 +401,8 @@ def start_lesson(
 
 
 def start_subject_lesson(
-    db: Session, child_id: int, subject: str, question_count: int
+    db: Session, child_id: int, subject: str, question_count: int,
+    child_user: User | None = None,
 ) -> tuple[LearningSession, Item | None]:
     """Start a new subject-review lesson across all published packages of a subject."""
     pkg_count = (
@@ -397,13 +411,23 @@ def start_subject_lesson(
         .count()
     )
     if pkg_count == 0:
-        raise ValueError("No published packages for this subject")
+        raise ValueError("Pro tento předmět nejsou publikované balíčky")
 
     selected = build_subject_lesson_sequence(db, child_id, subject, question_count)
     if not selected:
-        raise ValueError("No usable items for this subject")
+        raise ValueError("Pro tento předmět nejsou dostupné otázky")
 
     item_ids = [item.id for item in selected]
+
+    # Close any active sessions for this child
+    db.query(LearningSession).filter(
+        LearningSession.child_id == child_id,
+        LearningSession.finished_at.is_(None),
+    ).update({"finished_at": datetime.now(timezone.utc)})
+
+    if child_user is not None:
+        child_user.reward_streak = 0
+
     session = LearningSession(
         child_id=child_id,
         package_id=None,
@@ -429,18 +453,20 @@ def submit_answer(
 ) -> tuple[Feedback, RewardDelta | None]:
     """Submit an answer for a question in an active session."""
     if session.finished_at is not None:
-        raise ValueError("Session is already finished")
+        raise ValueError("Lekce je již ukončena")
 
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
-        raise ValueError("Item not found")
+        raise ValueError("Otázka nenalezena")
 
-    # Guard against duplicate answers for the same item
-    existing = db.query(Answer).filter(
+    # Guard: allow answering item_id as many times as it appears in item_ids
+    item_ids_list = json.loads(session.item_ids)
+    max_allowed = item_ids_list.count(item_id)
+    existing_count = db.query(Answer).filter(
         Answer.session_id == session.id, Answer.item_id == item_id
-    ).first()
-    if existing:
-        raise ValueError("Already answered this question")
+    ).count()
+    if existing_count >= max_allowed:
+        raise ValueError("Tato otázka již byla zodpovězena")
 
     is_correct = check_answer(item, given_answer)
     correct_answer = get_correct_answer_display(item)
@@ -487,16 +513,60 @@ def submit_answer(
     )
 
 
+def extend_session(
+    db: Session, session: LearningSession,
+) -> Item | None:
+    """Extend a finished session with fresh questions. Streak preserved."""
+    if session.finished_at is None:
+        raise ValueError("Lekce ještě není dokončena")
+    if session.extension_count >= MAX_EXTENSIONS:
+        raise ValueError("Maximální počet rozšíření dosažen")
+
+    # Fresh item selection (same as starting a new lesson — no exclusions)
+    if session.package_id:
+        selected = build_lesson_item_sequence(
+            db, session.child_id, session.package_id, EXTENSION_QUESTION_COUNT
+        )
+    else:
+        selected = build_subject_lesson_sequence(
+            db, session.child_id, session.subject, EXTENSION_QUESTION_COUNT
+        )
+
+    if not selected:
+        raise ValueError("Žádné otázky k dispozici")
+
+    # Append new items, re-open session
+    new_ids = [it.id for it in selected]
+    all_ids = json.loads(session.item_ids) + new_ids
+    session.item_ids = json.dumps(all_ids)
+    session.total_questions += len(selected)
+    session.finished_at = None
+    session.extension_count += 1
+
+    db.commit()
+    db.refresh(session)
+
+    return selected[0]
+
+
 def get_next_question_item(
     db: Session, session: LearningSession
 ) -> Item | None:
-    """Get the next unanswered item in the session."""
+    """Get the next unanswered item in the session.
+
+    An item can appear multiple times in item_ids (after extensions),
+    so we track how many times each item has been answered vs. how many
+    times it has appeared so far in the sequence.
+    """
     item_ids = json.loads(session.item_ids)
-    answered_ids = {
-        a.item_id
-        for a in db.query(Answer).filter(Answer.session_id == session.id).all()
-    }
+    answers = db.query(Answer).filter(Answer.session_id == session.id).all()
+    answer_counts: dict[int, int] = {}
+    for a in answers:
+        answer_counts[a.item_id] = answer_counts.get(a.item_id, 0) + 1
+
+    seen: dict[int, int] = {}
     for item_id in item_ids:
-        if item_id not in answered_ids:
+        seen[item_id] = seen.get(item_id, 0) + 1
+        if seen[item_id] > answer_counts.get(item_id, 0):
             return db.query(Item).filter(Item.id == item_id).first()
     return None
