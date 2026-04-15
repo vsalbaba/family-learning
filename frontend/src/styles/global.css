@@ -677,6 +677,11 @@ body {
   margin-bottom: 1.5rem;
 }
 
+.question-count-select .btn {
+  min-width: 3rem;
+  border-width: 2px;
+}
+
 .lesson-loading {
   text-align: center;
   padding: 3rem;

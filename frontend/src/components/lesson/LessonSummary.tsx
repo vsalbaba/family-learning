@@ -3,7 +3,6 @@ import type { LessonSummary as SummaryType } from "../../types/lesson";
 
 interface Props {
   summary: SummaryType;
-  onRetry: () => void;
   onExtend?: () => void;
 }
 
@@ -30,7 +29,7 @@ function formatCorrectAnswer(json: string, activityType: string): string {
   }
 }
 
-export default function LessonSummaryView({ summary, onRetry, onExtend }: Props) {
+export default function LessonSummaryView({ summary, onExtend }: Props) {
   const navigate = useNavigate();
   const emoji =
     summary.score_percent >= 80
@@ -75,12 +74,6 @@ export default function LessonSummaryView({ summary, onRetry, onExtend }: Props)
             Dej mi ještě
           </button>
         )}
-        <button
-          className="btn btn-secondary"
-          onClick={onRetry}
-        >
-          Zkusit znovu
-        </button>
         <button className="btn btn-secondary" onClick={() => navigate("/")}>
           Zpět
         </button>

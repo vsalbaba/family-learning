@@ -149,14 +149,6 @@ export default function LessonRunner({ packageId, subject }: Props) {
     return (
       <LessonSummaryView
         summary={summary}
-        onRetry={() => {
-          setSummary(null);
-          setQuestion(null);
-          setFeedback(null);
-          setSessionId(0);
-          setError("");
-          setState("idle");
-        }}
         onExtend={handleExtend}
       />
     );
