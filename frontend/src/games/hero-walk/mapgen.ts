@@ -74,11 +74,10 @@ function pickCommand(
     // Max 2 attacks total
     if (cmd === "attack" && attackCount >= 2) continue;
 
-    // Attack needs room for following forward, so not allowed if only 2 steps remain
-    // (this step = attack, next = forward, last must also be forward for princess)
-    // Actually: stepsRemaining includes this step. If stepsRemaining === 2,
-    // this could be attack and next is the last (forced forward). That works.
-    // But if stepsRemaining === 1, already handled above.
+    // Attack + forced forward = 2 steps. If stepsRemaining === 2, the forced
+    // forward would be the last step (princess arrival), placing princess on
+    // the enemy cell. Block attack when stepsRemaining <= 2.
+    if (cmd === "attack" && stepsRemaining <= 2) continue;
 
     return cmd;
   }
@@ -103,54 +102,84 @@ function buildTrace(): Trace | null {
 
   while (steps.length < length) {
     const stepsRemaining = length - steps.length;
-    const cmd = pickCommand(steps, stepsRemaining);
 
-    const beforePos = { ...pos };
-    const beforeDir = dir;
-    let attackTarget: Position | null = null;
+    // Try to place a command; if it fails spatially, re-pick (max 10 retries)
+    let placed = false;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const cmd = pickCommand(steps, stepsRemaining);
 
-    switch (cmd) {
-      case "turnLeft":
-        dir = LEFT[dir];
-        break;
+      const beforePos = { ...pos };
+      const beforeDir = dir;
+      let attackTarget: Position | null = null;
+      let newPos = { ...pos };
+      let newDir = dir;
 
-      case "turnRight":
-        dir = RIGHT[dir];
-        break;
+      switch (cmd) {
+        case "turnLeft":
+          newDir = LEFT[dir];
+          break;
 
-      case "forward": {
-        const [dr, dc] = DIR_DELTA[dir];
-        const next: Position = { row: pos.row + dr, col: pos.col + dc };
-        if (!inBounds(next)) return null;
-        const nk = posKey(next);
-        // Can walk over own path (revisit), but not over enemy cells
-        if (enemyCells.has(nk)) return null;
-        pos = next;
-        reserved.add(nk);
-        break;
+        case "turnRight":
+          newDir = RIGHT[dir];
+          break;
+
+        case "forward": {
+          const [dr, dc] = DIR_DELTA[dir];
+          const next: Position = { row: pos.row + dr, col: pos.col + dc };
+          if (!inBounds(next)) return null;
+          const nk = posKey(next);
+          if (enemyCells.has(nk)) {
+            // Allow walking through if we just killed this enemy (attack+forward micro-segment)
+            const prev = steps.length > 0 ? steps[steps.length - 1] : null;
+            if (
+              prev?.command === "attack" &&
+              prev.attackTarget &&
+              posKey(prev.attackTarget) === nk
+            ) {
+              enemyCells.delete(nk);
+            } else {
+              return null;
+            }
+          }
+          newPos = next;
+          break;
+        }
+
+        case "attack": {
+          const [dr, dc] = DIR_DELTA[dir];
+          const target: Position = { row: pos.row + dr, col: pos.col + dc };
+          const tk = inBounds(target) ? posKey(target) : null;
+          if (!tk || reserved.has(tk)) {
+            // Attack target invalid — re-pick a different command
+            continue;
+          }
+          attackTarget = { ...target };
+          enemyCells.add(tk);
+          reserved.add(tk);
+          break;
+        }
       }
 
-      case "attack": {
-        const [dr, dc] = DIR_DELTA[dir];
-        const target: Position = { row: pos.row + dr, col: pos.col + dc };
-        if (!inBounds(target)) return null;
-        const tk = posKey(target);
-        if (reserved.has(tk)) return null; // collision with path or another enemy
-        attackTarget = { ...target };
-        reserved.add(tk);
-        enemyCells.add(tk);
-        break;
-      }
+      pos = newPos;
+      dir = newDir;
+      reserved.add(posKey(pos));
+
+      steps.push({
+        command: cmd,
+        beforePos,
+        beforeDir,
+        afterPos: { ...pos },
+        afterDir: dir,
+        attackTarget,
+      });
+      placed = true;
+      break;
     }
 
-    steps.push({
-      command: cmd,
-      beforePos,
-      beforeDir,
-      afterPos: { ...pos },
-      afterDir: dir,
-      attackTarget,
-    });
+    if (!placed) {
+      // Couldn't find a valid command after retries — abandon trace
+      return null;
+    }
   }
 
   return { startPos, startDir, steps };
@@ -177,10 +206,16 @@ function buildMapFromTrace(trace: Trace): GameMap {
     }
   }
 
-  // Treasure on a random intermediate hero position (not start, not princess)
+  // Treasure on a random intermediate hero position (not start, not princess, not enemy)
+  const enemyKeys = new Set(enemies.map((e) => posKey(e.pos)));
   const heroPositions = trace.steps
     .map((s) => s.afterPos)
-    .filter((p) => !posEq(p, heroStart) && !posEq(p, princessPos));
+    .filter(
+      (p) =>
+        !posEq(p, heroStart) &&
+        !posEq(p, princessPos) &&
+        !enemyKeys.has(posKey(p)),
+    );
 
   // Deduplicate
   const seen = new Set<string>();

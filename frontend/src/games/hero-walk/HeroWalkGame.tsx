@@ -124,18 +124,18 @@ export default function HeroWalkGame() {
         <div className={`hw-result ${result.outcome === "win" ? "hw-result--win" : "hw-result--lose"}`}>
           <h2>
             {result.outcome === "win"
-              ? "Zachr\u00e1nil jsi princeznu!"
-              : "Princezna \u010dek\u00e1 d\u00e1l..."}
+              ? "Princezna je zachráněná!"
+              : "Princezna čeká dál..."}
           </h2>
           {result.outcome === "win" && result.treasureCollected && (
-            <p>A sebral poklad!</p>
+            <p>A poklad v kapse!</p>
           )}
           <div className="hw-result-actions">
             <button className="btn btn-primary" onClick={handleRetry}>
               Zkusit znovu
             </button>
             <button className="btn btn-secondary" onClick={handleNewMap}>
-              Nov\u00e1 mapa
+              Nová mapa
             </button>
           </div>
         </div>
@@ -163,7 +163,7 @@ export default function HeroWalkGame() {
         className="btn btn-secondary hw-back"
         onClick={() => navigate("/")}
       >
-        Zp\u011bt
+        Konec
       </button>
     </div>
   );
