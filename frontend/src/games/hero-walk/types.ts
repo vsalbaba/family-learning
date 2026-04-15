@@ -11,6 +11,7 @@ export interface Enemy {
   id: number;
   pos: Position;
   alive: boolean;
+  dying?: boolean;
 }
 
 export interface GameMap {

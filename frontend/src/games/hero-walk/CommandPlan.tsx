@@ -23,7 +23,7 @@ export default function CommandPlan({
   return (
     <div className="hw-plan">
       {plan.length === 0 && (
-        <span className="hw-plan-empty">Klikni na příkaz...</span>
+        <span className="hw-plan-empty">Sestav plán</span>
       )}
       {plan.map((cmd, i) => {
         let className = "hw-plan-item";

@@ -26,9 +26,29 @@ export default function HeroWalkGame() {
   );
   const [treasureVisible, setTreasureVisible] = useState(true);
   const [result, setResult] = useState<SimulationResult | null>(null);
+
+  // Animation states
+  const [heroBlocked, setHeroBlocked] = useState(false);
+  const [treasureCollecting, setTreasureCollecting] = useState(false);
+  const [winAnimation, setWinAnimation] = useState(false);
+
   const animRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  function clearAllTimers() {
+    if (animRef.current) clearTimeout(animRef.current);
+    timerRefs.current.forEach(clearTimeout);
+    timerRefs.current = [];
+  }
+
+  function addTimer(fn: () => void, ms: number) {
+    const id = setTimeout(fn, ms);
+    timerRefs.current.push(id);
+    return id;
+  }
 
   function resetToMap(m: GameMap) {
+    clearAllTimers();
     setMap(m);
     setPlan([]);
     setGameState("planning");
@@ -41,7 +61,9 @@ export default function HeroWalkGame() {
     setAnimatedEnemies(m.enemies.map((e) => ({ ...e, pos: { ...e.pos } })));
     setTreasureVisible(true);
     setResult(null);
-    if (animRef.current) clearTimeout(animRef.current);
+    setHeroBlocked(false);
+    setTreasureCollecting(false);
+    setWinAnimation(false);
   }
 
   const addCommand = useCallback((cmd: Command) => {
@@ -57,6 +79,9 @@ export default function HeroWalkGame() {
     setResult(sim);
     setGameState("running");
     setCurrentStepIndex(0);
+    setHeroBlocked(false);
+    setTreasureCollecting(false);
+    setWinAnimation(false);
 
     // Reset animation state to initial
     setAnimatedHero({
@@ -71,27 +96,59 @@ export default function HeroWalkGame() {
     let i = 0;
     function nextStep() {
       if (i >= sim.steps.length) {
-        animRef.current = setTimeout(() => {
-          setGameState("finished");
-        }, RESULT_DELAY_MS);
+        // Check for win animation
+        if (sim.outcome === "win") {
+          setWinAnimation(true);
+          animRef.current = setTimeout(() => {
+            setGameState("finished");
+          }, RESULT_DELAY_MS + 600); // extra time for win animation
+        } else {
+          animRef.current = setTimeout(() => {
+            setGameState("finished");
+          }, RESULT_DELAY_MS);
+        }
         return;
       }
       const step = sim.steps[i];
       setAnimatedHero({ ...step.hero });
       setCurrentStepIndex(i);
 
+      // Blocked animation
+      if (step.blocked) {
+        setHeroBlocked(true);
+        addTimer(() => setHeroBlocked(false), 200);
+      }
+
+      // Enemy killed animation
       if (step.enemyKilled) {
         const killed = step.enemyKilled;
+        // Phase 1: set dying (triggers CSS animation)
         setAnimatedEnemies((prev) =>
           prev.map((e) =>
             e.pos.row === killed.row && e.pos.col === killed.col
-              ? { ...e, alive: false }
+              ? { ...e, dying: true }
               : e,
           ),
         );
+        // Phase 2: remove after animation
+        addTimer(() => {
+          setAnimatedEnemies((prev) =>
+            prev.map((e) =>
+              e.pos.row === killed.row && e.pos.col === killed.col
+                ? { ...e, alive: false, dying: false }
+                : e,
+            ),
+          );
+        }, 300);
       }
+
+      // Treasure collect animation
       if (step.treasurePickedUp) {
-        setTreasureVisible(false);
+        setTreasureCollecting(true);
+        addTimer(() => {
+          setTreasureCollecting(false);
+          setTreasureVisible(false);
+        }, 300);
       }
 
       i++;
@@ -118,6 +175,9 @@ export default function HeroWalkGame() {
         heroState={animatedHero}
         enemies={animatedEnemies}
         treasureVisible={treasureVisible}
+        heroBlocked={heroBlocked}
+        treasureCollecting={treasureCollecting}
+        winAnimation={winAnimation}
       />
 
       {isFinished && result && (

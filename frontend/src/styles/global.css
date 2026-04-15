@@ -1478,17 +1478,24 @@ body {
   margin: 0 auto;
 }
 
+/* Grid wrapper: relative container for hero overlay */
+.hw-grid-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  aspect-ratio: 1;
+}
+
 .hw-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(6, 1fr);
   gap: 2px;
-  aspect-ratio: 1;
   width: 100%;
-  max-width: 360px;
+  height: 100%;
 }
 
 .hw-cell {
-  aspect-ratio: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1496,6 +1503,9 @@ body {
   background: var(--color-surface);
   border-radius: 4px;
   border: 1px solid var(--color-border);
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .hw-cell--boulder {
@@ -1503,11 +1513,94 @@ body {
   border-color: #57534e;
 }
 
-.hw-cell--hero {
+/* Hero: absolutely positioned overlay with smooth transition */
+.hw-hero {
+  position: absolute;
+  /* cell size = (100% - 5 gaps of 2px) / 6 */
+  --cell-size: calc((100% - 10px) / 6);
+  --cell-step: calc(var(--cell-size) + 2px);
+  left: calc(var(--hw-col) * var(--cell-step));
+  top: calc(var(--hw-row) * var(--cell-step));
+  width: var(--cell-size);
+  height: var(--cell-size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
   background: #dbeafe;
-  border-color: #93c5fd;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  transition: left 0.2s ease-out, top 0.2s ease-out;
+  z-index: 2;
+  pointer-events: none;
 }
 
+.hw-hero-sprite {
+  display: inline-block;
+  transition: transform 0.15s ease-out;
+}
+
+/* Blocked: quick jitter */
+.hw-hero--blocked {
+  animation: hw-jitter 0.2s ease-out;
+}
+
+@keyframes hw-jitter {
+  0% { translate: 0 0; }
+  25% { translate: -3px 0; }
+  50% { translate: 3px 0; }
+  75% { translate: -2px 0; }
+  100% { translate: 0 0; }
+}
+
+/* Win: hero pop */
+.hw-hero--win {
+  animation: hw-pop 0.6s ease-out;
+}
+
+@keyframes hw-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* Enemy dying: red flash + shrink */
+.hw-cell--enemy-dying {
+  animation: hw-enemy-die 0.3s ease-out forwards;
+}
+
+@keyframes hw-enemy-die {
+  0% { transform: scale(1); background: #fecaca; }
+  40% { transform: scale(1.15); background: #f87171; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+/* Treasure collect: scale up + vanish */
+.hw-cell--treasure-collecting {
+  animation: hw-treasure-collect 0.3s ease-out forwards;
+}
+
+@keyframes hw-treasure-collect {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.4); }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+/* Win: princess wiggle */
+.hw-cell--win-princess {
+  animation: hw-princess-wiggle 0.6s ease-out;
+}
+
+@keyframes hw-princess-wiggle {
+  0% { transform: rotate(0deg); }
+  20% { transform: rotate(-8deg); }
+  40% { transform: rotate(8deg); }
+  60% { transform: rotate(-4deg); }
+  80% { transform: rotate(4deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Command plan */
 .hw-plan {
   display: flex;
   gap: 4px;
@@ -1549,6 +1642,7 @@ body {
   opacity: 0.4;
 }
 
+/* Command buttons */
 .hw-buttons {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -1561,6 +1655,7 @@ body {
   grid-column: 1 / -1;
 }
 
+/* Result */
 .hw-result {
   text-align: center;
   padding: 1.5rem;
