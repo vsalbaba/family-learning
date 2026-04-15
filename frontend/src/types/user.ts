@@ -7,6 +7,7 @@ export interface User {
   reward_progress: number;
   reward_streak: number;
   game_tokens: number;
+  pin_plain: string | null;
 }
 
 export interface LoginResponse {

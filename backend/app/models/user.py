@@ -17,6 +17,7 @@ class User(Base):
         Integer, ForeignKey("user.id"), nullable=True
     )
     avatar: Mapped[str | None] = mapped_column(String, nullable=True)
+    pin_plain: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()
     )

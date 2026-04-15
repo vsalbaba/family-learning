@@ -10,6 +10,7 @@ import {
   updateItem,
   createItem,
   deleteItem,
+  exportPackage,
 } from "../api/packages";
 import type { ActivityType, PackageDetail, PackageItem } from "../types/package";
 import ItemEditor from "../components/packages/ItemEditor";
@@ -161,6 +162,21 @@ export default function PackageDetailPage() {
               Upravit metadata
             </button>
           )}
+          <button
+            className="btn btn-small btn-secondary"
+            onClick={async () => {
+              const data = await exportPackage(pkg.id);
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${pkg.name.replace(/\s+/g, "_")}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Exportovat JSON
+          </button>
           <button className="btn btn-secondary" onClick={() => navigate("/")}>
             Zpět
           </button>

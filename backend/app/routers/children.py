@@ -7,7 +7,7 @@ from app.models.package import Item, Package
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import require_parent
-from app.schemas.user import ChildCreate, ChildUpdate, UserResponse
+from app.schemas.user import ChildCreate, ChildResponse, ChildUpdate, UserResponse
 from app.services.auth_service import hash_pin
 
 router = APIRouter()
@@ -24,7 +24,7 @@ def _get_pkg_name(db: Session, cache: dict[int, Package], package_id: int) -> st
     return "?"
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=list[ChildResponse])
 def list_children(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
@@ -35,7 +35,7 @@ def list_children(
     return children
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ChildResponse, status_code=status.HTTP_201_CREATED)
 def create_child(
     req: ChildCreate,
     user: User = Depends(require_parent),
@@ -45,6 +45,7 @@ def create_child(
         name=req.name,
         role="child",
         pin_hash=hash_pin(req.pin),
+        pin_plain=req.pin,
         parent_id=user.id,
         avatar=req.avatar,
     )
@@ -54,7 +55,7 @@ def create_child(
     return child
 
 
-@router.put("/{child_id}", response_model=UserResponse)
+@router.put("/{child_id}", response_model=ChildResponse)
 def update_child(
     child_id: int,
     req: ChildUpdate,
@@ -70,6 +71,7 @@ def update_child(
         child.name = req.name
     if req.pin is not None:
         child.pin_hash = hash_pin(req.pin)
+        child.pin_plain = req.pin
     if req.avatar is not None:
         child.avatar = req.avatar
     db.commit()

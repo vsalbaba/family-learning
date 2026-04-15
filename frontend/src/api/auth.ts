@@ -1,4 +1,4 @@
-import { get, post } from "./client";
+import { get, post, put } from "./client";
 import type { LoginResponse, User } from "../types/user";
 
 export function getSetupStatus() {
@@ -23,6 +23,10 @@ export function createChild(name: string, pin: string, avatar?: string) {
 
 export function listChildren() {
   return get<User[]>("/children");
+}
+
+export function updateChild(childId: number, data: { name?: string; pin?: string }) {
+  return put<User>(`/children/${childId}`, data);
 }
 
 export interface PackageProgress {

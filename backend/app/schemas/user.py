@@ -32,6 +32,10 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ChildResponse(UserResponse):
+    pin_plain: str | None = None
+
+
 class ChildCreate(BaseModel):
     name: str
     pin: str

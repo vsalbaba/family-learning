@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { listChildren, createChild } from "../api/auth";
+import { listChildren, createChild, updateChild } from "../api/auth";
 import type { User } from "../types/user";
 
 export default function ChildrenPage() {
@@ -9,6 +9,8 @@ export default function ChildrenPage() {
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(true);
+  const [editingPinId, setEditingPinId] = useState<number | null>(null);
+  const [newPin, setNewPin] = useState("");
 
   useEffect(() => {
     listChildren()
@@ -22,6 +24,14 @@ export default function ChildrenPage() {
     setChildren((c) => [...c, child]);
     setName("");
     setPin("");
+  }
+
+  async function handleChangePin(childId: number) {
+    if (!newPin.trim()) return;
+    const updated = await updateChild(childId, { pin: newPin.trim() });
+    setChildren((c) => c.map((ch) => (ch.id === childId ? updated : ch)));
+    setEditingPinId(null);
+    setNewPin("");
   }
 
   return (
@@ -40,14 +50,54 @@ export default function ChildrenPage() {
           <p>Zatím žádné děti. Přidejte první!</p>
         ) : (
           children.map((child) => (
-            <div
-              key={child.id}
-              className="child-card child-card--clickable"
-              onClick={() => navigate(`/children/${child.id}/progress`)}
-            >
-              <span>{child.avatar || "🧒"}</span>
-              <span className="child-card__name">{child.name}</span>
-              <span className="child-card__action">Přehled</span>
+            <div key={child.id} className="child-card">
+              <div
+                className="child-card__main child-card--clickable"
+                onClick={() => navigate(`/children/${child.id}/progress`)}
+              >
+                <span>{child.avatar || "🧒"}</span>
+                <span className="child-card__name">{child.name}</span>
+                <span className="child-card__action">Přehled</span>
+              </div>
+              <div className="child-card__pin-row">
+                {editingPinId === child.id ? (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Nový PIN"
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value)}
+                      maxLength={6}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                      className="btn btn-small btn-primary"
+                      onClick={() => handleChangePin(child.id)}
+                      disabled={!newPin.trim()}
+                    >
+                      Uložit
+                    </button>
+                    <button
+                      className="btn btn-small btn-secondary"
+                      onClick={() => { setEditingPinId(null); setNewPin(""); }}
+                    >
+                      Zrušit
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="child-card__pin">
+                      PIN: {child.pin_plain || "—"}
+                    </span>
+                    <button
+                      className="btn btn-small btn-secondary"
+                      onClick={() => { setEditingPinId(child.id); setNewPin(""); }}
+                    >
+                      Změnit PIN
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))
         )}

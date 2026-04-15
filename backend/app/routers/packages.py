@@ -311,9 +311,7 @@ def export_package(
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Package not found")
-    if pkg.raw_json:
-        return json.loads(pkg.raw_json)
-    # Reconstruct from DB
+    # Always reconstruct from current DB state (raw_json may be stale)
     items_out = []
     for item in pkg.items:
         item_dict = {
