@@ -124,12 +124,14 @@ export default function LessonRunner({ packageId, subject }: Props) {
             </button>
           ))}
         </div>
-        <button className="btn btn-primary btn-large" onClick={handleStart}>
-          Začít lekci
-        </button>
-        <button className="btn btn-secondary" onClick={() => navigate("/")}>
-          Zpět
-        </button>
+        <div className="lesson-start-actions">
+          <button className="btn btn-primary btn-large" onClick={handleStart}>
+            Začít lekci
+          </button>
+          <button className="btn btn-secondary" onClick={() => navigate("/")}>
+            Zpět
+          </button>
+        </div>
         {error && <p className="lesson-error">{error}</p>}
       </div>
     );
