@@ -1,5 +1,7 @@
 import type { ActivityType } from "../../types/package";
+import type { RewardInfo } from "../../types/lesson";
 import SpeakButton from "../common/SpeakButton";
+import RewardFeedback from "./RewardFeedback";
 
 interface Props {
   isCorrect: boolean;
@@ -10,6 +12,7 @@ interface Props {
   activityType: ActivityType;
   ttsLang: string | null;
   onContinue: () => void;
+  reward: RewardInfo | null;
 }
 
 function formatAnswer(json: string, activityType: ActivityType, isGiven: boolean): string {
@@ -66,6 +69,7 @@ export default function FeedbackOverlay({
   activityType,
   ttsLang,
   onContinue,
+  reward,
 }: Props) {
   const correctDisplay = formatAnswer(correctAnswer, activityType, false);
   const givenDisplay = formatAnswer(givenAnswer, activityType, true);
@@ -91,6 +95,7 @@ export default function FeedbackOverlay({
         </p>
       )}
       {explanation && <p className="feedback-explanation">{explanation}</p>}
+      {reward && reward.progress_gained > 0 && <RewardFeedback reward={reward} />}
       <button className="btn btn-primary" onClick={onContinue} autoFocus>
         Pokračovat
       </button>

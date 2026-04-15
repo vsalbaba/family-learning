@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, children, lessons, packages, tts
+from app.routers import auth, children, lessons, packages, rewards, tts
 
 
 @asynccontextmanager
@@ -45,6 +45,19 @@ def _migrate_add_columns(eng):
 
         # Session table migration: make package_id nullable, add subject
         _migrate_session_table(raw)
+
+        # User table: reward columns
+        cursor = raw.execute("PRAGMA table_info(user)")
+        user_columns = {row[1] for row in cursor.fetchall()}
+        for col in ("reward_progress", "reward_streak", "game_tokens"):
+            if col not in user_columns:
+                raw.execute(
+                    f"ALTER TABLE user ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
+                )
+        # Backfill NULLs for existing rows (SQLite may leave NULL despite DEFAULT)
+        for col in ("reward_progress", "reward_streak", "game_tokens"):
+            raw.execute(f"UPDATE user SET {col} = 0 WHERE {col} IS NULL")
+        raw.commit()
 
 
 def _migrate_session_table(raw):
@@ -115,6 +128,7 @@ app.include_router(children.router, prefix="/api/children", tags=["children"])
 app.include_router(packages.router, prefix="/api/packages", tags=["packages"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["lessons"])
 app.include_router(tts.router, prefix="/api/tts", tags=["tts"])
+app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
 
 
 @app.get("/api/health")

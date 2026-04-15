@@ -248,9 +248,10 @@ class TestSessionLifecycle:
     ):
         session, first = start_lesson(db_session, child_user.id, published_package.id, 1)
         given = json.dumps({"knew": True}) if first.activity_type == "flashcard" else json.dumps({"answer": True})
-        feedback = submit_answer(db_session, session, first.id, given, None)
+        feedback, reward_delta = submit_answer(db_session, session, first.id, given, None)
         assert isinstance(feedback.is_correct, bool)
         assert feedback.correct_answer is not None
+        assert reward_delta is None  # no child_user passed
 
     def test_submit_all_answers_finishes_session(
         self, db_session, child_user, published_package

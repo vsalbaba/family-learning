@@ -13,6 +13,7 @@ interface AuthState {
   loading: boolean;
   setUser: (user: User | null, token?: string) => void;
   logout: () => void;
+  updateRewardState: (r: { progress: number; streak: number; game_tokens: number }) => void;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthState>({
   loading: true,
   setUser: () => {},
   logout: () => {},
+  updateRewardState: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -48,8 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(null);
   }
 
+  function updateRewardState(r: { progress: number; streak: number; game_tokens: number }) {
+    setUserState((prev) =>
+      prev
+        ? {
+            ...prev,
+            reward_progress: r.progress,
+            reward_streak: r.streak,
+            game_tokens: r.game_tokens,
+          }
+        : null,
+    );
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, setUser, logout }}>
+    <AuthContext.Provider value={{ user, loading, setUser, logout, updateRewardState }}>
       {children}
     </AuthContext.Provider>
   );

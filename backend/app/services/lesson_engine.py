@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from app.models.package import Item, Package
 from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
+from app.models.user import User
+from app.services.reward_service import RewardDelta, process_answer_reward
 from app.services.spaced_repetition import get_or_create_review, update_review
 
 logger = logging.getLogger(__name__)
@@ -423,7 +425,8 @@ def submit_answer(
     item_id: int,
     given_answer: str,
     response_time_ms: int | None,
-) -> Feedback:
+    child_user: User | None = None,
+) -> tuple[Feedback, RewardDelta | None]:
     """Submit an answer for a question in an active session."""
     if session.finished_at is not None:
         raise ValueError("Session is already finished")
@@ -431,6 +434,13 @@ def submit_answer(
     item = db.query(Item).filter(Item.id == item_id).first()
     if not item:
         raise ValueError("Item not found")
+
+    # Guard against duplicate answers for the same item
+    existing = db.query(Answer).filter(
+        Answer.session_id == session.id, Answer.item_id == item_id
+    ).first()
+    if existing:
+        raise ValueError("Already answered this question")
 
     is_correct = check_answer(item, given_answer)
     correct_answer = get_correct_answer_display(item)
@@ -460,12 +470,20 @@ def submit_answer(
     review = get_or_create_review(db, session.child_id, item_id)
     update_review(review, is_correct)
 
+    # Update reward state
+    reward_delta = None
+    if child_user is not None:
+        reward_delta = process_answer_reward(child_user, is_correct)
+
     db.commit()
 
-    return Feedback(
-        is_correct=is_correct,
-        correct_answer=correct_answer,
-        explanation=item.explanation,
+    return (
+        Feedback(
+            is_correct=is_correct,
+            correct_answer=correct_answer,
+            explanation=item.explanation,
+        ),
+        reward_delta,
     )
 
 

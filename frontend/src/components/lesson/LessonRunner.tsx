@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Question, AnswerResponse, LessonSummary } from "../../types/lesson";
 import { startLesson, submitAnswer, getLessonSummary } from "../../api/lessons";
+import { useAuth } from "../../contexts/AuthContext";
 import ProgressBar from "./ProgressBar";
 import QuestionCard from "./QuestionCard";
 import FeedbackOverlay from "./FeedbackOverlay";
@@ -16,6 +17,7 @@ interface Props {
 
 export default function LessonRunner({ packageId, subject }: Props) {
   const navigate = useNavigate();
+  const { updateRewardState } = useAuth();
   const [state, setState] = useState<LessonState>("idle");
   const [sessionId, setSessionId] = useState<number>(0);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -46,6 +48,9 @@ export default function LessonRunner({ packageId, subject }: Props) {
     setState("loading");
     try {
       const resp = await submitAnswer(sessionId, question.item_id, answer, elapsed);
+      if (resp.reward) {
+        updateRewardState(resp.reward);
+      }
       if (question.activity_type === "flashcard") {
         // Skip feedback overlay — go straight to next question or summary
         if (resp.next_question) {
@@ -166,6 +171,7 @@ export default function LessonRunner({ packageId, subject }: Props) {
               activityType={question.activity_type}
               ttsLang={question.tts_lang}
               onContinue={handleContinue}
+              reward={feedback.reward}
             />
           )}
         </>

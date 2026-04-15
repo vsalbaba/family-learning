@@ -4,6 +4,9 @@ export interface User {
   role: "parent" | "child";
   avatar: string | null;
   created_at: string;
+  reward_progress: number;
+  reward_streak: number;
+  game_tokens: number;
 }
 
 export interface LoginResponse {

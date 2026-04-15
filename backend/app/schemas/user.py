@@ -25,6 +25,9 @@ class UserResponse(BaseModel):
     role: str
     avatar: str | None = None
     created_at: datetime
+    reward_progress: int = 0
+    reward_streak: int = 0
+    game_tokens: int = 0
 
     model_config = {"from_attributes": True}
 

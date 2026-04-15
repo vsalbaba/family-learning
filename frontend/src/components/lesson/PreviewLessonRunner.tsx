@@ -212,6 +212,7 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
               activityType={currentItem.activity_type as ActivityType}
               ttsLang={ttsLang}
               onContinue={handleContinue}
+              reward={null}
             />
           )}
         </>

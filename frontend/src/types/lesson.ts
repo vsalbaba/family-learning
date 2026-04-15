@@ -11,12 +11,23 @@ export interface Question {
   tts_lang: string | null;
 }
 
+export interface RewardInfo {
+  progress_gained: number;
+  is_streak_bonus: boolean;
+  new_streak: number;
+  token_earned: boolean;
+  progress: number;
+  streak: number;
+  game_tokens: number;
+}
+
 export interface AnswerResponse {
   is_correct: boolean;
   correct_answer: string;
   given_answer: string;
   explanation: string | null;
   next_question: Question | null;
+  reward: RewardInfo | null;
 }
 
 export interface LessonStartResponse {

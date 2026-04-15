@@ -16,6 +16,7 @@ from app.schemas.session import (
     LessonStartRequest,
     LessonSummaryResponse,
     QuestionResponse,
+    RewardInfo,
 )
 from app.services.lesson_engine import (
     get_child_answer_data,
@@ -121,8 +122,9 @@ def lesson_answer(
         raise HTTPException(status_code=403, detail="Not your session")
 
     try:
-        feedback = submit_answer(
-            db, session, req.item_id, req.given_answer, req.response_time_ms
+        feedback, reward_delta = submit_answer(
+            db, session, req.item_id, req.given_answer, req.response_time_ms,
+            child_user=user,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -148,6 +150,7 @@ def lesson_answer(
         given_answer=req.given_answer,
         explanation=feedback.explanation,
         next_question=next_question,
+        reward=RewardInfo(**vars(reward_delta)) if reward_delta else None,
     )
 
 
