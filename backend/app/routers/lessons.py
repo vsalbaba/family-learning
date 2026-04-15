@@ -1,6 +1,7 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,6 +22,7 @@ from app.services.lesson_engine import (
     get_correct_answer_display,
     get_next_question_item,
     start_lesson,
+    start_subject_lesson,
     submit_answer,
 )
 
@@ -42,6 +44,28 @@ def _item_to_question(
     )
 
 
+@router.get("/subjects")
+def list_subjects(
+    user: User = Depends(require_child),
+    db: Session = Depends(get_db),
+):
+    """Return distinct subjects from published packages with counts."""
+    rows = (
+        db.query(
+            Package.subject,
+            func.min(Package.subject_display).label("display"),
+            func.count(Package.id).label("count"),
+        )
+        .filter(Package.status == "published", Package.subject.isnot(None))
+        .group_by(Package.subject)
+        .all()
+    )
+    return [
+        {"subject": subj, "display": display or subj, "package_count": cnt}
+        for subj, display, cnt in rows
+    ]
+
+
 @router.post("/start")
 def lesson_start(
     req: LessonStartRequest,
@@ -49,14 +73,24 @@ def lesson_start(
     db: Session = Depends(get_db),
 ):
     try:
-        session, first_item = start_lesson(
-            db, user.id, req.package_id, req.question_count
-        )
+        if req.package_id:
+            session, first_item = start_lesson(
+                db, user.id, req.package_id, req.question_count
+            )
+        else:
+            session, first_item = start_subject_lesson(
+                db, user.id, req.subject, req.question_count
+            )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        msg = str(e)
+        if "No published" in msg or "No usable" in msg:
+            code = status.HTTP_404_NOT_FOUND
+        else:
+            code = status.HTTP_403_FORBIDDEN
+        raise HTTPException(status_code=code, detail=msg)
 
-    pkg = db.query(Package).filter(Package.id == req.package_id).first()
-    tts_lang = pkg.tts_lang if pkg else None
+    # Resolve tts_lang from the item's package (works for both modes)
+    tts_lang = first_item.package.tts_lang if first_item and first_item.package else None
 
     question = None
     if first_item:
@@ -98,8 +132,7 @@ def lesson_answer(
     if session.finished_at is None:
         next_item = get_next_question_item(db, session)
         if next_item:
-            pkg = db.query(Package).filter(Package.id == session.package_id).first()
-            tts_lang = pkg.tts_lang if pkg else None
+            tts_lang = next_item.package.tts_lang if next_item.package else None
             answered_count = (
                 db.query(Answer)
                 .filter(Answer.session_id == session.id)

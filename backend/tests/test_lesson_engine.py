@@ -8,9 +8,11 @@ from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.services.lesson_engine import (
+    build_subject_lesson_sequence,
     check_answer,
     get_next_question_item,
     start_lesson,
+    start_subject_lesson,
     submit_answer,
 )
 
@@ -372,3 +374,130 @@ class TestReviewStateUpdate:
         session2, _ = start_lesson(db_session, child_user.id, pkg.id, 5)
         item_ids = json.loads(session2.item_ids)
         assert first.id in item_ids
+
+
+# ── Subject lesson tests ──────────────────────────────────────
+
+
+class TestSubjectLesson:
+    def _make_pkg(self, db: Session, parent: User, subject: str, n: int = 5) -> Package:
+        pkg = Package(
+            name=f"Pkg-{subject}-{n}",
+            subject=subject,
+            subject_display=subject.title(),
+            status="published",
+            created_by=parent.id,
+        )
+        db.add(pkg)
+        db.flush()
+        for i in range(n):
+            db.add(Item(
+                package_id=pkg.id, sort_order=i, activity_type="true_false",
+                question=f"Q{i}", answer_data=json.dumps({"correct": True}),
+            ))
+        db.commit()
+        db.refresh(pkg)
+        return pkg
+
+    def test_build_subject_lesson_selects_from_multiple_packages(
+        self, db_session, child_user, parent_user
+    ):
+        pkg1 = self._make_pkg(db_session, parent_user, "math", 5)
+        pkg2 = self._make_pkg(db_session, parent_user, "math", 5)
+        items = build_subject_lesson_sequence(db_session, child_user.id, "math", 7)
+        assert len(items) == 7
+        pkg_ids = {item.package_id for item in items}
+        assert pkg1.id in pkg_ids
+        assert pkg2.id in pkg_ids
+
+    def test_build_subject_lesson_ignores_other_subjects(
+        self, db_session, child_user, parent_user
+    ):
+        self._make_pkg(db_session, parent_user, "math", 5)
+        self._make_pkg(db_session, parent_user, "czech", 5)
+        items = build_subject_lesson_sequence(db_session, child_user.id, "math", 10)
+        for item in items:
+            assert item.package_id != db_session.query(Package).filter(
+                Package.subject == "czech"
+            ).first().id or False
+            pkg = db_session.query(Package).filter(Package.id == item.package_id).first()
+            assert pkg.subject == "math"
+
+    def test_build_subject_lesson_ignores_unpublished(
+        self, db_session, child_user, parent_user
+    ):
+        self._make_pkg(db_session, parent_user, "math", 5)
+        draft = Package(
+            name="Draft", subject="math", status="draft", created_by=parent_user.id,
+        )
+        db_session.add(draft)
+        db_session.flush()
+        db_session.add(Item(
+            package_id=draft.id, sort_order=0, activity_type="true_false",
+            question="DraftQ", answer_data=json.dumps({"correct": True}),
+        ))
+        db_session.commit()
+        items = build_subject_lesson_sequence(db_session, child_user.id, "math", 10)
+        item_pkg_ids = {item.package_id for item in items}
+        assert draft.id not in item_pkg_ids
+
+    def test_start_subject_lesson_creates_session(
+        self, db_session, child_user, parent_user
+    ):
+        self._make_pkg(db_session, parent_user, "math", 5)
+        session, first = start_subject_lesson(db_session, child_user.id, "math", 3)
+        assert session.package_id is None
+        assert session.subject == "math"
+        assert session.total_questions == 3
+        assert first is not None
+
+    def test_start_subject_lesson_no_packages_raises(
+        self, db_session, child_user, parent_user
+    ):
+        with pytest.raises(ValueError, match="No published packages"):
+            start_subject_lesson(db_session, child_user.id, "nonexistent", 5)
+
+    def test_start_subject_lesson_no_items_raises(
+        self, db_session, child_user, parent_user
+    ):
+        # Published package with no items
+        pkg = Package(
+            name="Empty", subject="empty", status="published", created_by=parent_user.id,
+        )
+        db_session.add(pkg)
+        db_session.commit()
+        with pytest.raises(ValueError, match="No usable items"):
+            start_subject_lesson(db_session, child_user.id, "empty", 5)
+
+    def test_subject_lesson_submit_answer_updates_review(
+        self, db_session, child_user, parent_user
+    ):
+        self._make_pkg(db_session, parent_user, "math", 3)
+        session, first = start_subject_lesson(db_session, child_user.id, "math", 1)
+        submit_answer(db_session, session, first.id, json.dumps({"answer": True}), None)
+
+        rs = db_session.query(ReviewState).filter(
+            ReviewState.child_id == child_user.id,
+            ReviewState.item_id == first.id,
+        ).first()
+        assert rs is not None
+        assert rs.last_reviewed_at is not None
+
+    def test_subject_lesson_full_lifecycle(
+        self, db_session, child_user, parent_user
+    ):
+        """Start → answer all → session finishes."""
+        self._make_pkg(db_session, parent_user, "math", 5)
+        session, first = start_subject_lesson(db_session, child_user.id, "math", 2)
+        assert session.total_questions == 2
+
+        # Answer first
+        submit_answer(db_session, session, first.id, json.dumps({"answer": True}), 100)
+        next_item = get_next_question_item(db_session, session)
+        assert next_item is not None
+
+        # Answer second
+        submit_answer(db_session, session, next_item.id, json.dumps({"answer": True}), 100)
+        db_session.refresh(session)
+        assert session.finished_at is not None
+        assert session.correct_count == 2

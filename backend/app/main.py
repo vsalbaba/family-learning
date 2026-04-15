@@ -24,11 +24,80 @@ def _migrate_add_columns(eng):
     """Add new columns to existing tables if they don't exist yet."""
     with eng.connect() as conn:
         raw = conn.connection.connection  # type: ignore[union-attr]
+
+        # Package table migrations
         cursor = raw.execute("PRAGMA table_info(package)")
-        columns = {row[1] for row in cursor.fetchall()}
-        if "tts_lang" not in columns:
+        pkg_columns = {row[1] for row in cursor.fetchall()}
+        if "tts_lang" not in pkg_columns:
             raw.execute("ALTER TABLE package ADD COLUMN tts_lang TEXT")
-            raw.commit()
+        if "subject_display" not in pkg_columns:
+            raw.execute("ALTER TABLE package ADD COLUMN subject_display TEXT")
+            # Backfill: preserve original subject as display, then normalize subject
+            raw.execute(
+                "UPDATE package SET subject_display = subject"
+                " WHERE subject IS NOT NULL AND subject_display IS NULL"
+            )
+            raw.execute(
+                "UPDATE package SET subject = LOWER(TRIM(subject))"
+                " WHERE subject IS NOT NULL"
+            )
+        raw.commit()
+
+        # Session table migration: make package_id nullable, add subject
+        _migrate_session_table(raw)
+
+
+def _migrate_session_table(raw):
+    """Rebuild session table: make package_id nullable, add subject column.
+
+    SQLite cannot ALTER COLUMN, so we rebuild the table.
+    The answer table has session_id FK with ON DELETE CASCADE,
+    so we must disable FK enforcement during the rebuild.
+    """
+    cursor = raw.execute("PRAGMA table_info(session)")
+    columns = {row[1] for row in cursor.fetchall()}
+    if "subject" in columns:
+        return  # already migrated
+
+    raw.execute("PRAGMA foreign_keys = OFF")
+    try:
+        raw.execute("BEGIN TRANSACTION")
+
+        raw.execute("""
+            CREATE TABLE session_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                child_id INTEGER NOT NULL REFERENCES user(id),
+                package_id INTEGER REFERENCES package(id),
+                subject TEXT,
+                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                finished_at DATETIME,
+                total_questions INTEGER NOT NULL,
+                correct_count INTEGER NOT NULL DEFAULT 0,
+                item_ids TEXT NOT NULL DEFAULT '[]'
+            )
+        """)
+        raw.execute("""
+            INSERT INTO session_new
+                (id, child_id, package_id, started_at, finished_at,
+                 total_questions, correct_count, item_ids)
+            SELECT id, child_id, package_id, started_at, finished_at,
+                   total_questions, correct_count, item_ids
+            FROM session
+        """)
+        raw.execute("DROP TABLE session")
+        raw.execute("ALTER TABLE session_new RENAME TO session")
+
+        raw.execute("COMMIT")
+    except Exception:
+        raw.execute("ROLLBACK")
+        raise
+    finally:
+        raw.execute("PRAGMA foreign_keys = ON")
+
+    # Verify FK integrity after rebuild
+    violations = raw.execute("PRAGMA foreign_key_check(session)").fetchall()
+    if violations:
+        raise RuntimeError(f"FK violations after session migration: {violations}")
 
 
 app = FastAPI(title="Family Learning", version="0.1.0", lifespan=lifespan)

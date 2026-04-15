@@ -28,11 +28,20 @@ from app.services.package_validator import validate_package
 router = APIRouter()
 
 
+def _normalize_subject(s: str | None) -> tuple[str | None, str | None]:
+    """Return (normalized_key, display) for a subject value."""
+    if not s or not s.strip():
+        return None, None
+    display = s.strip()
+    return display.lower(), display
+
+
 def _package_to_response(pkg: Package) -> PackageResponse:
     return PackageResponse(
         id=pkg.id,
         name=pkg.name,
         subject=pkg.subject,
+        subject_display=pkg.subject_display,
         difficulty=pkg.difficulty,
         description=pkg.description,
         status=pkg.status,
@@ -77,9 +86,11 @@ def _import_package(
     data = result.parsed
     meta = data["metadata"]
 
+    subj_key, subj_display = _normalize_subject(meta.get("subject"))
     pkg = Package(
         name=meta["name"],
-        subject=meta.get("subject"),
+        subject=subj_key,
+        subject_display=subj_display,
         difficulty=meta.get("difficulty"),
         description=meta.get("description"),
         tts_lang=meta.get("tts_lang"),
@@ -211,7 +222,9 @@ def update_package(
     if req.name is not None:
         pkg.name = req.name
     if req.subject is not None:
-        pkg.subject = req.subject
+        subj_key, subj_display = _normalize_subject(req.subject)
+        pkg.subject = subj_key
+        pkg.subject_display = subj_display
     if req.difficulty is not None:
         pkg.difficulty = req.difficulty
     if req.description is not None:
@@ -317,7 +330,7 @@ def export_package(
         items_out.append(item_dict)
     metadata = {
         "name": pkg.name,
-        "subject": pkg.subject,
+        "subject": pkg.subject_display or pkg.subject,
         "difficulty": pkg.difficulty,
         "description": pkg.description,
     }

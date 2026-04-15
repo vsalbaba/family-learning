@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Integer, String, Boolean, Text, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -13,9 +13,10 @@ class LearningSession(Base):
     child_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("user.id"), nullable=False
     )
-    package_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("package.id"), nullable=False
+    package_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("package.id"), nullable=True
     )
+    subject: Mapped[str | None] = mapped_column(String, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()
     )

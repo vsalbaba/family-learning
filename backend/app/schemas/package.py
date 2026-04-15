@@ -33,6 +33,7 @@ class PackageResponse(BaseModel):
     id: int
     name: str
     subject: str | None = None
+    subject_display: str | None = None
     difficulty: str | None = None
     description: str | None = None
     status: str

@@ -217,16 +217,16 @@ def _classify_and_score(
     return ("not_due", score)
 
 
-def build_lesson_item_sequence(
-    db: Session, child_id: int, package_id: int, question_count: int
+def _build_from_items(
+    db: Session,
+    child_id: int,
+    items: list[Item],
+    question_count: int,
+    *,
+    log_label: str = "pkg=?",
 ) -> list[Item]:
-    """Select and order items for a lesson using progress-first heuristics."""
-    # Use naive UTC to match SQLite storage (which strips tzinfo)
+    """Shared item selection: classify, budget, score, return ordered list."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-
-    items = db.query(Item).filter(Item.package_id == package_id).all()
-    if not items:
-        return []
 
     item_ids = [item.id for item in items]
     reviews = (
@@ -305,11 +305,11 @@ def build_lesson_item_sequence(
     selected_learning = sum(1 for it in review_selected if it in learning_items)
     selected_due = review_used - selected_learning
     logger.info(
-        "lesson_mix child=%d pkg=%d "
+        "lesson_mix child=%d %s "
         "selected: learning=%d due=%d new=%d not_due=%d total=%d | "
         "pools: learning=%d due=%d new=%d not_due=%d",
         child_id,
-        package_id,
+        log_label,
         selected_learning,
         selected_due,
         new_used,
@@ -322,6 +322,38 @@ def build_lesson_item_sequence(
     )
 
     return result
+
+
+def build_lesson_item_sequence(
+    db: Session, child_id: int, package_id: int, question_count: int
+) -> list[Item]:
+    """Select and order items for a lesson from a single package."""
+    items = db.query(Item).filter(Item.package_id == package_id).all()
+    if not items:
+        return []
+    return _build_from_items(
+        db, child_id, items, question_count, log_label=f"pkg={package_id}"
+    )
+
+
+def build_subject_lesson_sequence(
+    db: Session, child_id: int, subject: str, question_count: int
+) -> list[Item]:
+    """Select and order items for a lesson from all published packages of a subject."""
+    pkg_ids = [
+        p.id
+        for p in db.query(Package.id)
+        .filter(Package.subject == subject, Package.status == "published")
+        .all()
+    ]
+    if not pkg_ids:
+        return []
+    items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all()
+    if not items:
+        return []
+    return _build_from_items(
+        db, child_id, items, question_count, log_label=f"subject={subject}"
+    )
 
 
 def start_lesson(
@@ -351,6 +383,38 @@ def start_lesson(
     db.refresh(session)
 
     return session, selected[0] if selected else None
+
+
+def start_subject_lesson(
+    db: Session, child_id: int, subject: str, question_count: int
+) -> tuple[LearningSession, Item | None]:
+    """Start a new subject-review lesson across all published packages of a subject."""
+    pkg_count = (
+        db.query(Package)
+        .filter(Package.subject == subject, Package.status == "published")
+        .count()
+    )
+    if pkg_count == 0:
+        raise ValueError("No published packages for this subject")
+
+    selected = build_subject_lesson_sequence(db, child_id, subject, question_count)
+    if not selected:
+        raise ValueError("No usable items for this subject")
+
+    item_ids = [item.id for item in selected]
+    session = LearningSession(
+        child_id=child_id,
+        package_id=None,
+        subject=subject,
+        total_questions=len(selected),
+        correct_count=0,
+        item_ids=json.dumps(item_ids),
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    return session, selected[0]
 
 
 def submit_answer(

@@ -1,11 +1,18 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class LessonStartRequest(BaseModel):
-    package_id: int
+    package_id: int | None = None
+    subject: str | None = None
     question_count: int = Field(default=5, ge=1, le=999)
+
+    @model_validator(mode="after")
+    def exactly_one_source(self):
+        if bool(self.package_id) == bool(self.subject):
+            raise ValueError("Provide exactly one of package_id or subject")
+        return self
 
 
 class QuestionResponse(BaseModel):

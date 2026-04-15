@@ -13,6 +13,17 @@ from app.services.auth_service import hash_pin
 router = APIRouter()
 
 
+def _get_pkg_name(db: Session, cache: dict[int, Package], package_id: int) -> str:
+    """Get package name, loading from DB and caching if needed."""
+    if package_id in cache:
+        return cache[package_id].name
+    pkg = db.query(Package).filter(Package.id == package_id).first()
+    if pkg:
+        cache[package_id] = pkg
+        return pkg.name
+    return "?"
+
+
 @router.get("", response_model=list[UserResponse])
 def list_children(
     user: User = Depends(require_parent),
@@ -104,9 +115,13 @@ def get_child_progress(
         .all()
     )
 
+    # Split into package sessions and subject sessions
+    pkg_sessions = [s for s in sessions if s.package_id is not None]
+    subj_sessions = [s for s in sessions if s.package_id is None]
+
     # Per-package aggregation
     pkg_stats: dict[int, dict] = {}
-    for s in sessions:
+    for s in pkg_sessions:
         if s.package_id not in pkg_stats:
             pkg_stats[s.package_id] = {
                 "session_count": 0,
@@ -139,13 +154,47 @@ def get_child_progress(
         package_progress.append({
             "package_id": pid,
             "package_name": pkg.name if pkg else "(smazaný)",
-            "subject": pkg.subject if pkg else None,
+            "subject": pkg.subject_display or pkg.subject if pkg else None,
             "session_count": ps["session_count"],
             "avg_score_pct": round(avg_pct, 1),
             "best_score_pct": round(ps["best_score_pct"], 1),
             "last_played": ps["last_played"].isoformat() if ps["last_played"] else None,
         })
     package_progress.sort(key=lambda x: x["last_played"] or "", reverse=True)
+
+    # Per-subject aggregation (subject-mode lessons)
+    subj_stats: dict[str, dict] = {}
+    for s in subj_sessions:
+        key = s.subject or "(neznámý)"
+        if key not in subj_stats:
+            subj_stats[key] = {
+                "session_count": 0,
+                "total_correct": 0,
+                "total_questions": 0,
+                "best_score_pct": 0.0,
+                "last_played": s.started_at,
+            }
+        ss = subj_stats[key]
+        ss["session_count"] += 1
+        ss["total_correct"] += s.correct_count
+        ss["total_questions"] += s.total_questions
+        pct = (s.correct_count / s.total_questions * 100) if s.total_questions else 0
+        if pct > ss["best_score_pct"]:
+            ss["best_score_pct"] = pct
+        if s.started_at and (ss["last_played"] is None or s.started_at > ss["last_played"]):
+            ss["last_played"] = s.started_at
+
+    subject_progress = []
+    for subj, ss in subj_stats.items():
+        avg_pct = (ss["total_correct"] / ss["total_questions"] * 100) if ss["total_questions"] else 0
+        subject_progress.append({
+            "subject": subj,
+            "session_count": ss["session_count"],
+            "avg_score_pct": round(avg_pct, 1),
+            "best_score_pct": round(ss["best_score_pct"], 1),
+            "last_played": ss["last_played"].isoformat() if ss["last_played"] else None,
+        })
+    subject_progress.sort(key=lambda x: x["last_played"] or "", reverse=True)
 
     # Weakest questions: items answered wrong most often
     wrong_counts = (
@@ -198,7 +247,7 @@ def get_child_progress(
             "activity_type": item.activity_type if item else "unknown",
             "correct_answer": item.answer_data if item else "{}",
             "package_name": (
-                packages.get(item.package_id, Package(name="?")).name
+                _get_pkg_name(db, packages, item.package_id)
                 if item else "(smazaný)"
             ),
             "wrong_count": wrong_count,
@@ -220,5 +269,6 @@ def get_child_progress(
         "total_questions": total_q,
         "overall_avg_pct": round(total_correct / total_q * 100, 1) if total_q else 0,
         "packages": package_progress,
+        "subject_progress": subject_progress,
         "weak_questions": weak_questions,
     }

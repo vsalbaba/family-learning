@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { listPackages } from "../api/packages";
 import type { PackageSummary } from "../types/package";
+import SubjectGrid from "../components/packages/SubjectGrid";
 import PackageList from "../components/packages/PackageList";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -23,7 +24,10 @@ export default function ChildHome() {
       {loading ? (
         <p>Načítání...</p>
       ) : (
-        <PackageList packages={packages} isChild />
+        <>
+          <SubjectGrid />
+          <PackageList packages={packages} isChild />
+        </>
       )}
     </div>
   );

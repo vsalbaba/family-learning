@@ -1,11 +1,26 @@
 import { get, post } from "./client";
 import type { AnswerResponse, LessonStartResponse, LessonSummary } from "../types/lesson";
 
-export function startLesson(packageId: number, questionCount: number) {
+export function startLesson(options: {
+  packageId?: number;
+  subject?: string;
+  questionCount: number;
+}) {
   return post<LessonStartResponse>("/lessons/start", {
-    package_id: packageId,
-    question_count: questionCount,
+    package_id: options.packageId,
+    subject: options.subject,
+    question_count: options.questionCount,
   });
+}
+
+export interface SubjectInfo {
+  subject: string;
+  display: string;
+  package_count: number;
+}
+
+export function listSubjects() {
+  return get<SubjectInfo[]>("/lessons/subjects");
 }
 
 export function submitAnswer(

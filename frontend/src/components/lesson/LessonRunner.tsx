@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Question, AnswerResponse, LessonSummary } from "../../types/lesson";
 import { startLesson, submitAnswer, getLessonSummary } from "../../api/lessons";
 import ProgressBar from "./ProgressBar";
@@ -9,10 +10,12 @@ import LessonSummaryView from "./LessonSummary";
 type LessonState = "idle" | "loading" | "answering" | "feedback" | "summary";
 
 interface Props {
-  packageId: number;
+  packageId?: number;
+  subject?: string;
 }
 
-export default function LessonRunner({ packageId }: Props) {
+export default function LessonRunner({ packageId, subject }: Props) {
+  const navigate = useNavigate();
   const [state, setState] = useState<LessonState>("idle");
   const [sessionId, setSessionId] = useState<number>(0);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -26,7 +29,7 @@ export default function LessonRunner({ packageId }: Props) {
     setState("loading");
     setError("");
     try {
-      const resp = await startLesson(packageId, questionCount);
+      const resp = await startLesson({ packageId, subject, questionCount });
       setSessionId(resp.session_id);
       setQuestion(resp.question);
       startTimeRef.current = Date.now();
@@ -110,6 +113,9 @@ export default function LessonRunner({ packageId }: Props) {
         <button className="btn btn-primary btn-large" onClick={handleStart}>
           Začít lekci
         </button>
+        <button className="btn btn-secondary" onClick={() => navigate("/")}>
+          Zpět
+        </button>
         {error && <p className="lesson-error">{error}</p>}
       </div>
     );
@@ -165,6 +171,9 @@ export default function LessonRunner({ packageId }: Props) {
         </>
       )}
       {error && <p className="lesson-error">{error}</p>}
+      <button className="btn btn-secondary btn-end-lesson" onClick={() => navigate("/")}>
+        Ukončit lekci
+      </button>
     </div>
   );
 }

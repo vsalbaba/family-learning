@@ -11,6 +11,7 @@ import LessonPage from "./pages/LessonPage";
 import ChildrenPage from "./pages/ChildrenPage";
 import ChildProgressPage from "./pages/ChildProgressPage";
 import PreviewLessonPage from "./pages/PreviewLessonPage";
+import SubjectLessonPage from "./pages/SubjectLessonPage";
 import "./styles/global.css";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ function AppRoutes() {
         ) : (
           <>
             <Route path="/" element={<ChildHome />} />
+            <Route path="/lesson/subject/:subject" element={<SubjectLessonPage />} />
             <Route path="/lesson/:packageId" element={<LessonPage />} />
           </>
         )}
