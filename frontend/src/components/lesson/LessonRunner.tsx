@@ -43,8 +43,22 @@ export default function LessonRunner({ packageId }: Props) {
     setState("loading");
     try {
       const resp = await submitAnswer(sessionId, question.item_id, answer, elapsed);
-      setFeedback(resp);
-      setState("feedback");
+      if (question.activity_type === "flashcard") {
+        // Skip feedback overlay — go straight to next question or summary
+        if (resp.next_question) {
+          setQuestion(resp.next_question);
+          setFeedback(null);
+          startTimeRef.current = Date.now();
+          setState("answering");
+        } else {
+          const s = await getLessonSummary(sessionId);
+          setSummary(s);
+          setState("summary");
+        }
+      } else {
+        setFeedback(resp);
+        setState("feedback");
+      }
     } catch (e: any) {
       setError(e.message);
       setState("answering");

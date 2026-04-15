@@ -72,7 +72,6 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
     try {
       const givenJson = JSON.stringify(answer);
       const resp = await checkItemAnswer(packageId, item.id, givenJson);
-      setFeedback(resp);
       setAnswers((prev) => [
         ...prev,
         {
@@ -83,7 +82,19 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
           correctAnswer: resp.correct_answer,
         },
       ]);
-      setState("feedback");
+      if (item.activity_type === "flashcard") {
+        // Skip feedback overlay — go straight to next question or summary
+        const nextIdx = currentIndex + 1;
+        if (nextIdx >= items.length) {
+          setState("summary");
+        } else {
+          setCurrentIndex(nextIdx);
+          await loadChildView(items[nextIdx]);
+        }
+      } else {
+        setFeedback(resp);
+        setState("feedback");
+      }
     } catch (e: any) {
       setError(e.message);
       setState("answering");
