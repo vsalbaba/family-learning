@@ -20,6 +20,7 @@ export interface PackageSummary {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  tts_lang: string | null;
   item_count: number;
 }
 

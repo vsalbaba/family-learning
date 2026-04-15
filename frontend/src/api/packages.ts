@@ -1,5 +1,6 @@
 import { del, get, post, put, uploadFile } from "./client";
 import type { ImportResponse, PackageDetail, PackageItem, PackageSummary } from "../types/package";
+import type { AnswerResponse } from "../types/lesson";
 
 export function listPackages() {
   return get<PackageSummary[]>("/packages");
@@ -51,4 +52,27 @@ export function createItem(packageId: number, data: Record<string, unknown>) {
 
 export function deleteItem(packageId: number, itemId: number) {
   return del(`/packages/${packageId}/items/${itemId}`);
+}
+
+export interface ChildViewItem {
+  item_id: number;
+  activity_type: string;
+  question: string;
+  answer_data: string;
+  hint: string | null;
+}
+
+export function getItemChildView(packageId: number, itemId: number) {
+  return get<ChildViewItem>(`/packages/${packageId}/items/${itemId}/child-view`);
+}
+
+export function checkItemAnswer(
+  packageId: number,
+  itemId: number,
+  givenAnswer: string,
+) {
+  return post<AnswerResponse>(`/packages/${packageId}/items/${itemId}/check`, {
+    item_id: itemId,
+    given_answer: givenAnswer,
+  });
 }

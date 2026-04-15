@@ -9,6 +9,8 @@ import ImportPage from "./pages/ImportPage";
 import PackageDetailPage from "./pages/PackageDetailPage";
 import LessonPage from "./pages/LessonPage";
 import ChildrenPage from "./pages/ChildrenPage";
+import ChildProgressPage from "./pages/ChildProgressPage";
+import PreviewLessonPage from "./pages/PreviewLessonPage";
 import "./styles/global.css";
 
 const queryClient = new QueryClient();
@@ -32,7 +34,9 @@ function AppRoutes() {
             <Route path="/" element={<ParentHome />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/packages/:id" element={<PackageDetailPage />} />
+            <Route path="/packages/:id/preview" element={<PreviewLessonPage />} />
             <Route path="/children" element={<ChildrenPage />} />
+            <Route path="/children/:childId/progress" element={<ChildProgressPage />} />
           </>
         ) : (
           <>

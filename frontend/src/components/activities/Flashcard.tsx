@@ -1,11 +1,13 @@
 import { useState } from "react";
+import SpeakButton from "../common/SpeakButton";
 
 interface Props {
   answerData: string;
   onSubmit: (answer: unknown) => void;
+  ttsLang: string | null;
 }
 
-export default function Flashcard({ answerData, onSubmit }: Props) {
+export default function Flashcard({ answerData, onSubmit, ttsLang }: Props) {
   const [revealed, setRevealed] = useState(false);
 
   if (!revealed) {
@@ -22,7 +24,10 @@ export default function Flashcard({ answerData, onSubmit }: Props) {
 
   return (
     <div className="activity activity--flashcard">
-      <p className="flashcard-answer">{parsed.answer}</p>
+      <div className="flashcard-answer-row">
+        <p className="flashcard-answer">{parsed.answer}</p>
+        {ttsLang && <SpeakButton text={parsed.answer} lang={ttsLang} />}
+      </div>
       <p className="flashcard-prompt">Věděl/a jsi?</p>
       <div className="flashcard-buttons">
         <button className="btn btn-large btn-true" onClick={() => onSubmit({ knew: true })}>

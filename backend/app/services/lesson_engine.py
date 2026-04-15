@@ -112,7 +112,11 @@ def get_child_answer_data(item: Item) -> str:
     if activity == "flashcard":
         return json.dumps({"answer": answer_data.get("answer", "")})
     if activity == "multiple_choice":
-        return json.dumps({"options": answer_data.get("options", [])})
+        options = list(answer_data.get("options", []))
+        indices = list(range(len(options)))
+        random.shuffle(indices)
+        shuffled = [options[i] for i in indices]
+        return json.dumps({"options": shuffled, "index_map": indices})
     if activity == "true_false":
         return json.dumps({})
     if activity == "fill_in":
@@ -150,7 +154,7 @@ def start_lesson(
     if not items:
         raise ValueError("Package has no items")
 
-    count = min(question_count, len(items), 10)
+    count = min(question_count, len(items))
     selected = random.sample(items, count)
     item_ids = [item.id for item in selected]
 

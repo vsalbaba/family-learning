@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class LessonStartRequest(BaseModel):
     package_id: int
-    question_count: int = Field(default=5, ge=1, le=10)
+    question_count: int = Field(default=5, ge=1, le=999)
 
 
 class QuestionResponse(BaseModel):
@@ -16,6 +16,7 @@ class QuestionResponse(BaseModel):
     question: str
     answer_data: str  # JSON — for child display (options, pairs, etc.)
     hint: str | None = None
+    tts_lang: str | None = None
 
 
 class AnswerRequest(BaseModel):

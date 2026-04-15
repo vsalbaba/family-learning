@@ -8,6 +8,7 @@ export interface Question {
   question: string;
   answer_data: string;
   hint: string | null;
+  tts_lang: string | null;
 }
 
 export interface AnswerResponse {

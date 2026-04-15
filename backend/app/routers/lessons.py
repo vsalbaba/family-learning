@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.package import Item
+from app.models.package import Item, Package
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import require_child
@@ -28,7 +28,7 @@ router = APIRouter()
 
 
 def _item_to_question(
-    item: Item, index: int, total: int
+    item: Item, index: int, total: int, tts_lang: str | None = None
 ) -> QuestionResponse:
     return QuestionResponse(
         item_id=item.id,
@@ -38,6 +38,7 @@ def _item_to_question(
         question=item.question,
         answer_data=get_child_answer_data(item),
         hint=item.hint,
+        tts_lang=tts_lang,
     )
 
 
@@ -54,9 +55,12 @@ def lesson_start(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
+    pkg = db.query(Package).filter(Package.id == req.package_id).first()
+    tts_lang = pkg.tts_lang if pkg else None
+
     question = None
     if first_item:
-        question = _item_to_question(first_item, 0, session.total_questions)
+        question = _item_to_question(first_item, 0, session.total_questions, tts_lang)
 
     return {
         "session_id": session.id,
@@ -94,13 +98,15 @@ def lesson_answer(
     if session.finished_at is None:
         next_item = get_next_question_item(db, session)
         if next_item:
+            pkg = db.query(Package).filter(Package.id == session.package_id).first()
+            tts_lang = pkg.tts_lang if pkg else None
             answered_count = (
                 db.query(Answer)
                 .filter(Answer.session_id == session.id)
                 .count()
             )
             next_question = _item_to_question(
-                next_item, answered_count, session.total_questions
+                next_item, answered_count, session.total_questions, tts_lang
             )
 
     return AnswerResponse(

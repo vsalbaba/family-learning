@@ -42,6 +42,7 @@ class PackageResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     published_at: datetime | None = None
+    tts_lang: str | None = None
     item_count: int = 0
 
     model_config = {"from_attributes": True}
@@ -56,6 +57,7 @@ class PackageUpdateRequest(BaseModel):
     subject: str | None = None
     difficulty: str | None = None
     description: str | None = None
+    tts_lang: str | None = None
 
 
 class ItemUpdateRequest(BaseModel):

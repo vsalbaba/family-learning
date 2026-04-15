@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.package import Item, Package
+from app.models.session import Answer
 from app.models.user import User
 from app.routers.auth import get_current_user, require_parent
 from app.schemas.package import (
@@ -20,6 +21,8 @@ from app.schemas.package import (
     ValidationResult as ValidationResultSchema,
     ValidationError as ValidationErrorSchema,
 )
+from app.schemas.session import AnswerRequest
+from app.services.lesson_engine import check_answer, get_child_answer_data, get_correct_answer_display
 from app.services.package_validator import validate_package
 
 router = APIRouter()
@@ -39,6 +42,7 @@ def _package_to_response(pkg: Package) -> PackageResponse:
         created_at=pkg.created_at,
         updated_at=pkg.updated_at,
         published_at=pkg.published_at,
+        tts_lang=pkg.tts_lang,
         item_count=len(pkg.items),
     )
 
@@ -78,6 +82,7 @@ def _import_package(
         subject=meta.get("subject"),
         difficulty=meta.get("difficulty"),
         description=meta.get("description"),
+        tts_lang=meta.get("tts_lang"),
         status="draft",
         raw_json=raw_json,
         validation_warnings=json.dumps([
@@ -211,6 +216,8 @@ def update_package(
         pkg.difficulty = req.difficulty
     if req.description is not None:
         pkg.description = req.description
+    if req.tts_lang is not None:
+        pkg.tts_lang = req.tts_lang if req.tts_lang != "" else None
     pkg.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(pkg)
@@ -308,13 +315,16 @@ def export_package(
         if item.tags:
             item_dict["tags"] = json.loads(item.tags)
         items_out.append(item_dict)
+    metadata = {
+        "name": pkg.name,
+        "subject": pkg.subject,
+        "difficulty": pkg.difficulty,
+        "description": pkg.description,
+    }
+    if pkg.tts_lang:
+        metadata["tts_lang"] = pkg.tts_lang
     return {
-        "metadata": {
-            "name": pkg.name,
-            "subject": pkg.subject,
-            "difficulty": pkg.difficulty,
-            "description": pkg.description,
-        },
+        "metadata": metadata,
         "items": items_out,
     }
 
@@ -420,5 +430,57 @@ def delete_item(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+    # Delete any answers referencing this item first
+    db.query(Answer).filter(Answer.item_id == item_id).delete()
     db.delete(item)
     db.commit()
+
+
+@router.post("/{package_id}/items/{item_id}/check")
+def check_item_answer(
+    package_id: int,
+    item_id: int,
+    req: AnswerRequest,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    """Check an answer without creating a session or saving anything."""
+    item = (
+        db.query(Item)
+        .filter(Item.id == item_id, Item.package_id == package_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    is_correct = check_answer(item, req.given_answer)
+    correct_answer = get_correct_answer_display(item)
+    return {
+        "is_correct": is_correct,
+        "correct_answer": correct_answer,
+        "given_answer": req.given_answer,
+        "explanation": item.explanation,
+    }
+
+
+@router.get("/{package_id}/items/{item_id}/child-view")
+def get_item_child_view(
+    package_id: int,
+    item_id: int,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    """Return the answer_data formatted for child display (no correct answers exposed)."""
+    item = (
+        db.query(Item)
+        .filter(Item.id == item_id, Item.package_id == package_id)
+        .first()
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {
+        "item_id": item.id,
+        "activity_type": item.activity_type,
+        "question": item.question,
+        "answer_data": get_child_answer_data(item),
+        "hint": item.hint,
+    }

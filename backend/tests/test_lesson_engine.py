@@ -183,7 +183,7 @@ class TestSessionLifecycle:
         session, _ = start_lesson(db_session, child_user.id, published_package.id, 3)
         assert session.total_questions == 3
 
-    def test_start_lesson_max_10_questions(
+    def test_start_lesson_respects_requested_count(
         self, db_session, child_user, parent_user
     ):
         # Create package with 50 items
@@ -196,8 +196,24 @@ class TestSessionLifecycle:
                 question=f"Q{i}", answer_data=json.dumps({"correct": True}),
             ))
         db_session.commit()
-        session, _ = start_lesson(db_session, child_user.id, pkg.id, 10)
-        assert session.total_questions == 10
+        session, _ = start_lesson(db_session, child_user.id, pkg.id, 20)
+        assert session.total_questions == 20
+
+    def test_start_lesson_all_questions(
+        self, db_session, child_user, parent_user
+    ):
+        pkg = Package(name="Big2", status="published", created_by=parent_user.id)
+        db_session.add(pkg)
+        db_session.flush()
+        for i in range(15):
+            db_session.add(Item(
+                package_id=pkg.id, sort_order=i, activity_type="true_false",
+                question=f"Q{i}", answer_data=json.dumps({"correct": True}),
+            ))
+        db_session.commit()
+        # Requesting 999 ("all") should cap to actual item count
+        session, _ = start_lesson(db_session, child_user.id, pkg.id, 999)
+        assert session.total_questions == 15
 
     def test_start_lesson_min_questions_from_package(
         self, db_session, child_user, parent_user

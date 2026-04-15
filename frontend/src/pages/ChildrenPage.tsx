@@ -40,9 +40,14 @@ export default function ChildrenPage() {
           <p>Zatím žádné děti. Přidejte první!</p>
         ) : (
           children.map((child) => (
-            <div key={child.id} className="child-card">
+            <div
+              key={child.id}
+              className="child-card child-card--clickable"
+              onClick={() => navigate(`/children/${child.id}/progress`)}
+            >
               <span>{child.avatar || "🧒"}</span>
-              <span>{child.name}</span>
+              <span className="child-card__name">{child.name}</span>
+              <span className="child-card__action">Přehled</span>
             </div>
           ))
         )}

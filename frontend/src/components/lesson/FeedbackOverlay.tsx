@@ -1,11 +1,14 @@
 import type { ActivityType } from "../../types/package";
+import SpeakButton from "../common/SpeakButton";
 
 interface Props {
   isCorrect: boolean;
   explanation: string | null;
   correctAnswer: string;
   givenAnswer: string;
+  questionText: string;
   activityType: ActivityType;
+  ttsLang: string | null;
   onContinue: () => void;
 }
 
@@ -59,7 +62,9 @@ export default function FeedbackOverlay({
   explanation,
   correctAnswer,
   givenAnswer,
+  questionText,
   activityType,
+  ttsLang,
   onContinue,
 }: Props) {
   const correctDisplay = formatAnswer(correctAnswer, activityType, false);
@@ -72,11 +77,17 @@ export default function FeedbackOverlay({
       {!isCorrect && givenDisplay && (
         <p className="feedback-given">
           Tvoje odpověď: <strong>{givenDisplay}</strong>
+          {ttsLang && <SpeakButton text={givenDisplay} lang={ttsLang} />}
         </p>
       )}
-      {!isCorrect && correctDisplay && (
+      <p className="feedback-question">
+        {questionText}
+        {ttsLang && <SpeakButton text={questionText} lang={ttsLang} />}
+      </p>
+      {correctDisplay && (
         <p className="feedback-answer">
           Správná odpověď: <strong>{correctDisplay}</strong>
+          {ttsLang && <SpeakButton text={correctDisplay} lang={ttsLang} />}
         </p>
       )}
       {explanation && <p className="feedback-explanation">{explanation}</p>}

@@ -77,7 +77,7 @@ export default function LessonRunner({ packageId }: Props) {
       <div className="lesson-start">
         <h2>Kolik otázek?</h2>
         <div className="question-count-select">
-          {[3, 5, 7, 10].map((n) => (
+          {[3, 5, 7, 10, 20].map((n) => (
             <button
               key={n}
               className={`btn ${questionCount === n ? "btn-primary" : "btn-secondary"}`}
@@ -86,6 +86,12 @@ export default function LessonRunner({ packageId }: Props) {
               {n}
             </button>
           ))}
+          <button
+            className={`btn ${questionCount === 999 ? "btn-primary" : "btn-secondary"}`}
+            onClick={() => setQuestionCount(999)}
+          >
+            Vše
+          </button>
         </div>
         <button className="btn btn-primary btn-large" onClick={handleStart}>
           Začít lekci
@@ -124,7 +130,9 @@ export default function LessonRunner({ packageId }: Props) {
               explanation={feedback.explanation}
               correctAnswer={feedback.correct_answer}
               givenAnswer={feedback.given_answer}
+              questionText={question.question}
               activityType={question.activity_type}
+              ttsLang={question.tts_lang}
               onContinue={handleContinue}
             />
           )}

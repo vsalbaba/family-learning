@@ -32,7 +32,7 @@ export default function PackageDetailPage() {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [addingType, setAddingType] = useState<ActivityType | null>(null);
   const [editingMeta, setEditingMeta] = useState(false);
-  const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "" });
+  const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "" });
 
   useEffect(() => {
     if (id) {
@@ -70,6 +70,7 @@ export default function PackageDetailPage() {
       subject: pkg.subject ?? "",
       difficulty: pkg.difficulty ?? "",
       description: pkg.description ?? "",
+      tts_lang: pkg.tts_lang ?? "",
     });
     setEditingMeta(true);
   }
@@ -82,6 +83,7 @@ export default function PackageDetailPage() {
       subject: metaForm.subject || null,
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
+      tts_lang: metaForm.tts_lang || "",
     });
     setPkg({
       ...pkg,
@@ -89,6 +91,7 @@ export default function PackageDetailPage() {
       subject: metaForm.subject || null,
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
+      tts_lang: metaForm.tts_lang || null,
     });
     setEditingMeta(false);
   }
@@ -113,18 +116,22 @@ export default function PackageDetailPage() {
   async function handleDeleteItem(item: PackageItem) {
     if (!pkg) return;
     if (!confirm(`Smazat otázku "${item.question}"?`)) return;
-    await deleteItem(pkg.id, item.id);
-    setPkg({
-      ...pkg,
-      items: pkg.items.filter((it) => it.id !== item.id),
-      item_count: pkg.item_count - 1,
-    });
+    try {
+      await deleteItem(pkg.id, item.id);
+      setPkg({
+        ...pkg,
+        items: pkg.items.filter((it) => it.id !== item.id),
+        item_count: pkg.item_count - 1,
+      });
+    } catch (e: any) {
+      alert(`Chyba při mazání: ${e.message}`);
+    }
   }
 
   if (loading) return <p>Načítání...</p>;
   if (!pkg) return <p>Balíček nenalezen.</p>;
 
-  const isEditable = pkg.status === "draft" || pkg.status === "ready";
+  const isEditable = true;
 
   return (
     <div className="page package-detail">
@@ -134,12 +141,21 @@ export default function PackageDetailPage() {
           <div className="package-meta">
             {pkg.subject && <span className="tag">{pkg.subject}</span>}
             {pkg.difficulty && <span className="tag">{pkg.difficulty}</span>}
+            {pkg.tts_lang && <span className="tag">TTS: {pkg.tts_lang}</span>}
             <span className={`status-badge status-badge--${pkg.status}`}>
               {pkg.status}
             </span>
           </div>
         </div>
         <div className="page-header-actions">
+          {pkg.items.length > 0 && (
+            <button
+              className="btn btn-small btn-primary"
+              onClick={() => navigate(`/packages/${pkg.id}/preview`)}
+            >
+              Vyzkoušet balíček
+            </button>
+          )}
           {!editingMeta && (
             <button className="btn btn-small btn-secondary" onClick={startEditMeta}>
               Upravit metadata
@@ -186,6 +202,17 @@ export default function PackageDetailPage() {
               value={metaForm.description}
               onChange={(e) => setMetaForm({ ...metaForm, description: e.target.value })}
             />
+          </label>
+          <label>
+            Vyslovnost (TTS)
+            <select
+              value={metaForm.tts_lang}
+              onChange={(e) => setMetaForm({ ...metaForm, tts_lang: e.target.value })}
+            >
+              <option value="">Vypnuto</option>
+              <option value="en">English</option>
+              <option value="de">Deutsch</option>
+            </select>
           </label>
           <div className="editor-actions">
             <button type="submit" className="btn btn-primary">Uložit</button>
@@ -260,22 +287,30 @@ export default function PackageDetailPage() {
                 {ACTIVITY_LABELS[item.activity_type] || item.activity_type}
               </span>
               <span className="item-question">{item.question}</span>
-              {isEditable && (
-                <div className="item-actions">
-                  <button
-                    className="btn btn-small btn-secondary"
-                    onClick={() => setEditingItemId(editingItemId === item.id ? null : item.id)}
-                  >
-                    {editingItemId === item.id ? "Zrušit" : "Upravit"}
-                  </button>
-                  <button
-                    className="btn btn-small btn-danger"
-                    onClick={() => handleDeleteItem(item)}
-                  >
-                    Smazat
-                  </button>
-                </div>
-              )}
+              <div className="item-actions">
+                <button
+                  className="btn btn-small btn-primary"
+                  onClick={() => navigate(`/packages/${pkg.id}/preview?item=${item.id}`)}
+                >
+                  Vyzkoušet
+                </button>
+                {isEditable && (
+                  <>
+                    <button
+                      className="btn btn-small btn-secondary"
+                      onClick={() => setEditingItemId(editingItemId === item.id ? null : item.id)}
+                    >
+                      {editingItemId === item.id ? "Zrušit" : "Upravit"}
+                    </button>
+                    <button
+                      className="btn btn-small btn-danger"
+                      onClick={() => handleDeleteItem(item)}
+                    >
+                      Smazat
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
             {editingItemId === item.id && (
               <ItemEditor

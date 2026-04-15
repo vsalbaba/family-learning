@@ -24,3 +24,40 @@ export function createChild(name: string, pin: string, avatar?: string) {
 export function listChildren() {
   return get<User[]>("/children");
 }
+
+export interface PackageProgress {
+  package_id: number;
+  package_name: string;
+  subject: string | null;
+  session_count: number;
+  avg_score_pct: number;
+  best_score_pct: number;
+  last_played: string | null;
+}
+
+export interface WeakQuestion {
+  item_id: number;
+  question: string;
+  activity_type: string;
+  correct_answer: string;
+  package_name: string;
+  wrong_count: number;
+  total_attempts: number;
+  error_rate_pct: number;
+  wrong_answers: string[];
+}
+
+export interface ChildProgress {
+  child_id: number;
+  child_name: string;
+  total_sessions: number;
+  total_correct: number;
+  total_questions: number;
+  overall_avg_pct: number;
+  packages: PackageProgress[];
+  weak_questions: WeakQuestion[];
+}
+
+export function getChildProgress(childId: number) {
+  return get<ChildProgress>(`/children/${childId}/progress`);
+}

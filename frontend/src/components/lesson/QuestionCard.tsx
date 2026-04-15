@@ -1,4 +1,5 @@
 import type { Question } from "../../types/lesson";
+import SpeakButton from "../common/SpeakButton";
 import MultipleChoice from "../activities/MultipleChoice";
 import TrueFalse from "../activities/TrueFalse";
 import FillIn from "../activities/FillIn";
@@ -13,18 +14,18 @@ interface Props {
 }
 
 export default function QuestionCard({ question, onSubmit }: Props) {
-  const { activity_type, question: text, hint, answer_data } = question;
+  const { activity_type, question: text, hint, answer_data, tts_lang } = question;
 
   function renderActivity() {
     switch (activity_type) {
       case "multiple_choice":
-        return <MultipleChoice answerData={answer_data} onSubmit={onSubmit} />;
+        return <MultipleChoice answerData={answer_data} onSubmit={onSubmit} ttsLang={tts_lang} />;
       case "true_false":
         return <TrueFalse onSubmit={onSubmit} />;
       case "fill_in":
         return <FillIn onSubmit={onSubmit} />;
       case "flashcard":
-        return <Flashcard answerData={answer_data} onSubmit={onSubmit} />;
+        return <Flashcard answerData={answer_data} onSubmit={onSubmit} ttsLang={tts_lang} />;
       case "matching":
         return <Matching answerData={answer_data} onSubmit={onSubmit} />;
       case "ordering":
@@ -38,7 +39,10 @@ export default function QuestionCard({ question, onSubmit }: Props) {
 
   return (
     <div className="question-card">
-      <h2 className="question-text">{text}</h2>
+      <div className="question-header">
+        <h2 className="question-text">{text}</h2>
+        {tts_lang && <SpeakButton text={text} lang={tts_lang} />}
+      </div>
       {hint && <p className="question-hint">Nápověda: {hint}</p>}
       {renderActivity()}
     </div>

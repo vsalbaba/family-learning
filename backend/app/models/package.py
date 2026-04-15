@@ -28,6 +28,7 @@ class Package(Base):
         DateTime, server_default=func.now(), onupdate=func.now()
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    tts_lang: Mapped[str | None] = mapped_column(String, nullable=True)
 
     items: Mapped[list["Item"]] = relationship(
         "Item", back_populates="package", cascade="all, delete-orphan",
