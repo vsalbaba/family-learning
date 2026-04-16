@@ -41,7 +41,7 @@ const SHEET_DEFS: Record<string, SheetDef> = {
     cols: 4,
     states: {
       "idle":      { row: 0, frames: 3, frameDurationMs: 250, loop: true },
-      "attacking": { row: 1, frames: 3, frameDurationMs: 100, loop: false },
+      "attacking": { row: 1, frames: 3, frameDurationMs: 200, loop: false },
       "cooldown":  { row: 2, frames: 3, frameDurationMs: 250, loop: true },
       "hit":       { row: 3, frames: 2, frameDurationMs: 75,  loop: false },
       "dying":     { row: 4, frames: 4, frameDurationMs: 100, loop: false },
@@ -62,7 +62,7 @@ const SHEET_DEFS: Record<string, SheetDef> = {
     cols: 4,
     states: {
       "idle":      { row: 0, frames: 2, frameDurationMs: 250, loop: true },
-      "attacking": { row: 1, frames: 3, frameDurationMs: 100, loop: false },
+      "attacking": { row: 1, frames: 3, frameDurationMs: 200, loop: false },
       "cooldown":  { row: 2, frames: 3, frameDurationMs: 250, loop: true },
       "hit":       { row: 3, frames: 2, frameDurationMs: 75,  loop: false },
       "dying":     { row: 4, frames: 4, frameDurationMs: 100, loop: false },

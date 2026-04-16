@@ -69,6 +69,9 @@ function updateLlamaAttacks(state: GameState, dt: number): void {
     if (animal.type !== "llama") continue;
     if (animal.state === "dying" || animal.state === "hit") continue;
 
+    // Let attack animation finish before transitioning
+    if (animal.state === "attacking") continue;
+
     // Tick cooldown
     if (animal.attackCooldown > 0) {
       animal.attackCooldown -= dt;
@@ -86,19 +89,21 @@ function updateLlamaAttacks(state: GameState, dt: number): void {
       continue;
     }
 
-    // Fire projectile
+    // Fire projectile from mouth height (top ~30% of the llama sprite)
     const dx = animal.facing === "right" ? 1 : -1;
+    const laneHeight = state.config.boardHeightPx / state.config.laneCount;
+    const mouthY = animal.y - laneHeight * 0.15;
     state.addProjectile(
       animal.lane,
       animal.x,
-      animal.y,
+      mouthY,
       dx,
       state.config.unitStats.llama.damage,
       animal.id,
     );
     animal.state = "attacking";
     animal.attackCooldown = state.config.unitStats.llama.attackCooldownMs;
-    animal.animTimer = 100; // brief attack anim
+    animal.animTimer = 600; // 3 frames × 200ms
   }
 }
 
@@ -140,6 +145,9 @@ function updateRamAttacks(state: GameState, dt: number): void {
     if (animal.type !== "ram") continue;
     if (animal.state === "dying" || animal.state === "hit") continue;
 
+    // Let attack animation finish before transitioning
+    if (animal.state === "attacking") continue;
+
     // Tick cooldown
     if (animal.attackCooldown > 0) {
       animal.attackCooldown -= dt;
@@ -180,7 +188,7 @@ function updateRamAttacks(state: GameState, dt: number): void {
 
     animal.state = "attacking";
     animal.attackCooldown = state.config.unitStats.ram.attackCooldownMs;
-    animal.animTimer = 100;
+    animal.animTimer = 600; // 3 frames × 200ms
   }
 }
 

@@ -27,7 +27,9 @@ export function updateSpawner(state: GameState, dt: number): void {
       state.spawnQueue[0].delayMs <= state.waveTimer
     ) {
       const entry = state.spawnQueue.shift()!;
-      state.spawnGoblin(entry.lane, entry.goblinType);
+      // Randomize lane assignment
+      const lane = Math.floor(Math.random() * state.config.laneCount);
+      state.spawnGoblin(lane, entry.goblinType);
     }
 
     // Wave fully spawned, prepare for next

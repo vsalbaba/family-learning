@@ -238,6 +238,9 @@ function drawAnimal(
     spriteTimer = state.config.hitFlashMs - animal.animTimer;
   } else if (animal.state === "dying") {
     spriteTimer = state.config.dyingDurationMs - animal.animTimer;
+  } else if (animal.state === "attacking") {
+    // animTimer counts down from 600ms; elapsed = 600 - remaining
+    spriteTimer = 600 - animal.animTimer;
   }
   // Llama sprites face right by default — flip when facing left
   const flipX = animal.type === "llama" && animal.facing === "left";

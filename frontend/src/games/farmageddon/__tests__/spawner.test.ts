@@ -46,8 +46,10 @@ describe("spawner system", () => {
     // First goblin (delayMs=0) spawns immediately when wave starts
     expect(state.goblins.size).toBeGreaterThanOrEqual(1);
 
-    const goblins = [...state.goblins.values()];
-    expect(goblins.some((g) => g.lane === 0)).toBe(true);
+    const goblin = [...state.goblins.values()][0];
+    // Lane is randomized, but must be valid
+    expect(goblin.lane).toBeGreaterThanOrEqual(0);
+    expect(goblin.lane).toBeLessThan(state.config.laneCount);
   });
 
   it("spawns staggered goblins with small ticks", () => {

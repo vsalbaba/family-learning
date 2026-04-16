@@ -55,13 +55,14 @@ export const DEFAULT_CONFIG: GameConfig = {
   waves: [],   // loaded from backend; fallback below
 };
 
-/** Fallback waves when backend is unreachable. */
+/** Fallback waves when backend is unreachable.
+ *  Lane is randomized at spawn time — the lane field here is ignored. */
 export const FALLBACK_WAVES = [
   {
     waveNumber: 1,
     delayBeforeMs: 3000,
     spawns: [
-      { lane: 1, delayMs: 0, goblinType: "basic" },
+      { lane: 0, delayMs: 0, goblinType: "basic" },
       { lane: 0, delayMs: 1500, goblinType: "basic" },
     ],
   },
@@ -70,8 +71,8 @@ export const FALLBACK_WAVES = [
     delayBeforeMs: 5000,
     spawns: [
       { lane: 0, delayMs: 0, goblinType: "basic" },
-      { lane: 2, delayMs: 500, goblinType: "basic" },
-      { lane: 1, delayMs: 1200, goblinType: "basic" },
+      { lane: 0, delayMs: 500, goblinType: "basic" },
+      { lane: 0, delayMs: 1200, goblinType: "basic" },
     ],
   },
   {
@@ -79,8 +80,8 @@ export const FALLBACK_WAVES = [
     delayBeforeMs: 5000,
     spawns: [
       { lane: 0, delayMs: 0, goblinType: "basic" },
-      { lane: 1, delayMs: 400, goblinType: "basic" },
-      { lane: 2, delayMs: 800, goblinType: "basic" },
+      { lane: 0, delayMs: 400, goblinType: "basic" },
+      { lane: 0, delayMs: 800, goblinType: "basic" },
       { lane: 0, delayMs: 1600, goblinType: "basic" },
     ],
   },
@@ -89,9 +90,9 @@ export const FALLBACK_WAVES = [
     delayBeforeMs: 6000,
     spawns: [
       { lane: 0, delayMs: 0, goblinType: "basic" },
-      { lane: 1, delayMs: 300, goblinType: "basic" },
-      { lane: 2, delayMs: 600, goblinType: "basic" },
-      { lane: 1, delayMs: 1200, goblinType: "basic" },
+      { lane: 0, delayMs: 300, goblinType: "basic" },
+      { lane: 0, delayMs: 600, goblinType: "basic" },
+      { lane: 0, delayMs: 1200, goblinType: "basic" },
       { lane: 0, delayMs: 1800, goblinType: "basic" },
     ],
   },
@@ -100,11 +101,11 @@ export const FALLBACK_WAVES = [
     delayBeforeMs: 6000,
     spawns: [
       { lane: 0, delayMs: 0, goblinType: "basic" },
-      { lane: 1, delayMs: 200, goblinType: "basic" },
-      { lane: 2, delayMs: 400, goblinType: "basic" },
+      { lane: 0, delayMs: 200, goblinType: "basic" },
+      { lane: 0, delayMs: 400, goblinType: "basic" },
       { lane: 0, delayMs: 1000, goblinType: "basic" },
-      { lane: 1, delayMs: 1400, goblinType: "basic" },
-      { lane: 2, delayMs: 1800, goblinType: "basic" },
+      { lane: 0, delayMs: 1400, goblinType: "basic" },
+      { lane: 0, delayMs: 1800, goblinType: "basic" },
     ],
   },
 ];
