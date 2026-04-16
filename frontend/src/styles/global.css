@@ -1694,3 +1694,225 @@ body {
 .games-section h3 {
   margin-bottom: 0.75rem;
 }
+
+.games-section .btn + .btn {
+  margin-left: 0.5rem;
+}
+
+/* ── Farmageddon ──────────────────────────────────── */
+
+.farmageddon-page {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.fg-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 800px;
+}
+
+/* Board canvas wrapper */
+.fg-board-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+}
+
+.fg-board-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  border-radius: var(--radius, 8px);
+  cursor: pointer;
+}
+
+/* Wave indicator */
+.fg-wave {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  background: var(--color-surface, #f8fafc);
+  padding: 0.25rem 0.75rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* Toolbar */
+.fg-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.fg-egg-counter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #b8860b;
+  background: #fff8e1;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius, 8px);
+  border: 1px solid #f0d060;
+  min-width: 60px;
+  justify-content: center;
+}
+
+.fg-egg-icon {
+  font-size: 1.3rem;
+}
+
+.fg-tool-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.fg-tool-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem;
+  border: 2px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius, 8px);
+  background: var(--color-surface, #f8fafc);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 60px;
+  font-family: inherit;
+}
+
+.fg-tool-btn:hover:not(:disabled) {
+  border-color: var(--color-primary, #4f46e5);
+}
+
+.fg-tool-btn--selected {
+  border-color: var(--color-primary, #4f46e5);
+  background: #eef2ff;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+.fg-tool-btn--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fg-tool-btn--sell {
+  border-color: #fca5a5;
+}
+
+.fg-tool-btn--sell.fg-tool-btn--selected {
+  border-color: #ef4444;
+  background: #fef2f2;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.fg-tool-emoji {
+  font-size: 1.3rem;
+}
+
+.fg-tool-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fg-tool-cost {
+  font-size: 0.65rem;
+  color: #b8860b;
+}
+
+/* Summary overlay */
+.fg-summary-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  animation: fadeIn 0.3s ease;
+}
+
+.fg-summary {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem 2.5rem;
+  text-align: center;
+  max-width: 360px;
+  width: 90%;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.fg-summary-title {
+  font-size: 2rem;
+  margin-bottom: 1.2rem;
+}
+
+.fg-summary--win .fg-summary-title {
+  color: var(--color-success, #16a34a);
+}
+
+.fg-summary--lose .fg-summary-title {
+  color: #dc2626;
+}
+
+.fg-summary-stats {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.fg-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.fg-stat-icon {
+  font-size: 1.5rem;
+}
+
+.fg-stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.fg-stat-label {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.fg-summary-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .fg-toolbar {
+    gap: 0.4rem;
+  }
+  .fg-tool-btn {
+    min-width: 50px;
+    padding: 0.3rem 0.4rem;
+  }
+  .fg-summary {
+    padding: 1.5rem;
+  }
+}

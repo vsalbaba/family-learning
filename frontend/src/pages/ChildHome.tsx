@@ -37,6 +37,12 @@ export default function ChildHome() {
             >
               HeroWalk
             </button>
+            <button
+              className="btn btn-primary"
+              onClick={() => navigate("/games/farmageddon")}
+            >
+              Farmageddon
+            </button>
           </div>
         </>
       )}

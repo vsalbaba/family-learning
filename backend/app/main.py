@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, children, lessons, packages, rewards, tts
+from app.routers import auth, children, farmageddon, lessons, packages, rewards, tts
 
 
 @asynccontextmanager
@@ -144,6 +144,7 @@ app.include_router(packages.router, prefix="/api/packages", tags=["packages"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["lessons"])
 app.include_router(tts.router, prefix="/api/tts", tags=["tts"])
 app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
+app.include_router(farmageddon.router, prefix="/api/farmageddon", tags=["farmageddon"])
 
 
 @app.get("/api/health")
