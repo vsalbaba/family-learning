@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ActivityType, PackageItem } from "../../types/package";
 
 interface Props {
@@ -19,6 +19,35 @@ function parseAnswerData(raw: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+function AutoTextarea({
+  value,
+  onChange,
+  minRows = 2,
+  ...rest
+}: {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  minRows?: number;
+} & Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange">) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const resize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, []);
+  useEffect(resize, [value, resize]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={onChange}
+      rows={minRows}
+      {...rest}
+    />
+  );
 }
 
 export default function ItemEditor({ item, activityType, onSave, onCancel }: Props) {
@@ -120,7 +149,7 @@ export default function ItemEditor({ item, activityType, onSave, onCancel }: Pro
     <form className="item-editor" onSubmit={handleSubmit}>
       <label>
         Otazka
-        <input
+        <AutoTextarea
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           required
@@ -131,7 +160,7 @@ export default function ItemEditor({ item, activityType, onSave, onCancel }: Pro
       {activityType === "flashcard" && (
         <label>
           Odpoved
-          <input value={answer} onChange={(e) => setAnswer(e.target.value)} required />
+          <AutoTextarea value={answer} onChange={(e) => setAnswer(e.target.value)} required />
         </label>
       )}
 
@@ -366,11 +395,11 @@ export default function ItemEditor({ item, activityType, onSave, onCancel }: Pro
 
       <label>
         Napoveda
-        <input value={hint} onChange={(e) => setHint(e.target.value)} />
+        <AutoTextarea value={hint} onChange={(e) => setHint(e.target.value)} minRows={1} />
       </label>
       <label>
         Vysvetleni
-        <input value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+        <AutoTextarea value={explanation} onChange={(e) => setExplanation(e.target.value)} minRows={1} />
       </label>
 
       <div className="editor-actions">

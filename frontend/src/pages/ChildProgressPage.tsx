@@ -101,6 +101,44 @@ export default function ChildProgressPage() {
             </table>
           </div>
 
+          {progress.subject_progress?.length > 0 && (
+            <>
+              <h3>Předměty</h3>
+              <div className="progress-table-wrap">
+                <table className="progress-table">
+                  <thead>
+                    <tr>
+                      <th>Předmět</th>
+                      <th>Lekcí</th>
+                      <th>Průměr</th>
+                      <th>Nejlepší</th>
+                      <th>Naposledy</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {progress.subject_progress.map((s) => (
+                      <tr key={s.subject}>
+                        <td>{s.subject}</td>
+                        <td>{s.session_count}</td>
+                        <td>
+                          <span className={scoreBadgeClass(s.avg_score_pct)}>
+                            {s.avg_score_pct}%
+                          </span>
+                        </td>
+                        <td>
+                          <span className={scoreBadgeClass(s.best_score_pct)}>
+                            {s.best_score_pct}%
+                          </span>
+                        </td>
+                        <td>{formatDate(s.last_played)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
           {progress.weak_questions.length > 0 && (
             <>
               <h3>Nejslabší otázky</h3>

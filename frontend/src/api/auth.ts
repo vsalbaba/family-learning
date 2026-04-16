@@ -51,6 +51,14 @@ export interface WeakQuestion {
   wrong_answers: string[];
 }
 
+export interface SubjectProgress {
+  subject: string;
+  session_count: number;
+  avg_score_pct: number;
+  best_score_pct: number;
+  last_played: string | null;
+}
+
 export interface ChildProgress {
   child_id: number;
   child_name: string;
@@ -59,6 +67,7 @@ export interface ChildProgress {
   total_questions: number;
   overall_avg_pct: number;
   packages: PackageProgress[];
+  subject_progress: SubjectProgress[];
   weak_questions: WeakQuestion[];
 }
 

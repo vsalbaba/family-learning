@@ -1,22 +1,39 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPackages } from "../api/packages";
+import { consumeToken } from "../api/rewards";
 import type { PackageSummary } from "../types/package";
 import SubjectGrid from "../components/packages/SubjectGrid";
 import PackageList from "../components/packages/PackageList";
+import TokenIcon from "../components/common/TokenIcon";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function ChildHome() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+
+  const tokens = user?.game_tokens ?? 0;
 
   useEffect(() => {
     listPackages()
       .then(setPackages)
       .finally(() => setLoading(false));
   }, []);
+
+  async function playGame(path: string) {
+    if (paying || tokens < 1) return;
+    setPaying(true);
+    try {
+      const { game_tokens } = await consumeToken();
+      if (user) setUser({ ...user, game_tokens });
+      navigate(path);
+    } catch {
+      setPaying(false);
+    }
+  }
 
   return (
     <div className="page child-home">
@@ -31,18 +48,33 @@ export default function ChildHome() {
           <PackageList packages={packages} isChild />
           <div className="games-section">
             <h3>Hry</h3>
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate("/games/hero-walk")}
-            >
-              HeroWalk
-            </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => navigate("/games/farmageddon")}
-            >
-              Farmageddon
-            </button>
+            {tokens === 0 && (
+              <p className="games-no-tokens">
+                Nemáš žádné žetony. Procvičuj a získej je!
+              </p>
+            )}
+            <div className="games-buttons">
+              <button
+                className="btn btn-primary game-btn"
+                disabled={tokens < 1 || paying}
+                onClick={() => playGame("/games/hero-walk")}
+              >
+                <span>HeroWalk</span>
+                <span className="game-btn-cost">
+                  <TokenIcon size={14} />1
+                </span>
+              </button>
+              <button
+                className="btn btn-primary game-btn"
+                disabled={tokens < 1 || paying}
+                onClick={() => playGame("/games/farmageddon")}
+              >
+                <span>Farmageddon</span>
+                <span className="game-btn-cost">
+                  <TokenIcon size={14} />1
+                </span>
+              </button>
+            </div>
           </div>
         </>
       )}

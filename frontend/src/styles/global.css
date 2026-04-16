@@ -574,6 +574,17 @@ body {
   font-size: 0.95rem;
 }
 
+.item-editor textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-family: inherit;
+  width: 100%;
+  resize: vertical;
+  overflow: hidden;
+}
+
 .item-editor fieldset {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -750,6 +761,7 @@ body {
 .question-text {
   font-size: 1.3rem;
   margin-bottom: 0;
+  white-space: pre-line;
 }
 
 .question-hint {
@@ -982,6 +994,7 @@ body {
   margin: 0.75rem 0;
   font-size: 1.1rem;
   font-weight: 600;
+  white-space: pre-line;
   color: var(--color-text);
 }
 
@@ -1701,8 +1714,30 @@ body {
   margin-bottom: 0.75rem;
 }
 
-.games-section .btn + .btn {
-  margin-left: 0.5rem;
+.games-no-tokens {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.games-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.game-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.game-btn-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  opacity: 0.85;
 }
 
 /* ── Farmageddon ──────────────────────────────────── */

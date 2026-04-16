@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -258,10 +258,24 @@ def get_child_progress(
             "wrong_answers": wrong_answers_by_item.get(item_id, []),
         })
 
-    # Overall summary
+    # Overall summary — count from actual answers to avoid inflated totals
+    # from auto-closed sessions where not all questions were answered.
     total_sessions = len(sessions)
-    total_correct = sum(s.correct_count for s in sessions)
-    total_q = sum(s.total_questions for s in sessions)
+    session_ids = [s.id for s in sessions]
+    if session_ids:
+        stats_row = (
+            db.query(
+                func.count(Answer.id),
+                func.sum(case((Answer.is_correct == True, 1), else_=0)),  # noqa: E712
+            )
+            .filter(Answer.session_id.in_(session_ids))
+            .one()
+        )
+        total_q = stats_row[0] or 0
+        total_correct = stats_row[1] or 0
+    else:
+        total_q = 0
+        total_correct = 0
 
     return {
         "child_id": child_id,
