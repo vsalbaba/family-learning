@@ -4,9 +4,10 @@ interface Props {
   summary: Summary;
   onRetry: () => void;
   onBack: () => void;
+  canReplay: boolean;
 }
 
-export default function GameSummary({ summary, onRetry, onBack }: Props) {
+export default function GameSummary({ summary, onRetry, onBack, canReplay }: Props) {
   const isWin = summary.result === "won";
 
   return (
@@ -35,9 +36,13 @@ export default function GameSummary({ summary, onRetry, onBack }: Props) {
         </div>
 
         <div className="fg-summary-actions">
-          <button className="btn btn-primary" onClick={onRetry}>
-            Znovu
-          </button>
+          {canReplay ? (
+            <button className="btn btn-primary" onClick={onRetry}>
+              Znovu
+            </button>
+          ) : (
+            <p className="game-window-expired">Herní čas vypršel</p>
+          )}
           <button className="btn btn-secondary" onClick={onBack}>
             Zpět
           </button>

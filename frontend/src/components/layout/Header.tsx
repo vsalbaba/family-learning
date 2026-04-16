@@ -1,8 +1,10 @@
 import { useAuth } from "../../contexts/AuthContext";
+import { useGameWindow } from "../../hooks/useGameWindow";
 import TokenIcon from "../common/TokenIcon";
 
 export default function Header() {
   const { user, logout } = useAuth();
+  const { isActive, remainingSeconds } = useGameWindow();
   if (!user) return null;
 
   return (
@@ -26,6 +28,12 @@ export default function Header() {
               <TokenIcon size={18} />
               <span>{user.game_tokens}</span>
             </span>
+            {isActive && (
+              <span className="window-timer">
+                {Math.floor(remainingSeconds / 60)}:
+                {String(remainingSeconds % 60).padStart(2, "0")}
+              </span>
+            )}
           </div>
         )}
         <button className="btn btn-small" onClick={logout}>

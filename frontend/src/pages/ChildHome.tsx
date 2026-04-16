@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPackages } from "../api/packages";
-import { consumeToken } from "../api/rewards";
+import { activateWindow } from "../api/rewards";
 import type { PackageSummary } from "../types/package";
 import SubjectGrid from "../components/packages/SubjectGrid";
 import PackageList from "../components/packages/PackageList";
 import TokenIcon from "../components/common/TokenIcon";
 import { useAuth } from "../contexts/AuthContext";
+import { useGameWindow } from "../hooks/useGameWindow";
 
 export default function ChildHome() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function ChildHome() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
 
+  const { isActive: windowActive } = useGameWindow();
   const tokens = user?.game_tokens ?? 0;
 
   useEffect(() => {
@@ -24,11 +26,20 @@ export default function ChildHome() {
   }, []);
 
   async function playGame(path: string) {
+    if (windowActive) {
+      navigate(path);
+      return;
+    }
     if (paying || tokens < 1) return;
     setPaying(true);
     try {
-      const { game_tokens } = await consumeToken();
-      if (user) setUser({ ...user, game_tokens });
+      const resp = await activateWindow();
+      if (user)
+        setUser({
+          ...user,
+          game_tokens: resp.game_tokens,
+          game_window_expires_at: resp.window_expires_at,
+        });
       navigate(path);
     } catch {
       setPaying(false);
@@ -48,7 +59,7 @@ export default function ChildHome() {
           <PackageList packages={packages} isChild />
           <div className="games-section">
             <h3>Hry</h3>
-            {tokens === 0 && (
+            {!windowActive && tokens === 0 && (
               <p className="games-no-tokens">
                 Nemáš žádné žetony. Procvičuj a získej je!
               </p>
@@ -56,23 +67,27 @@ export default function ChildHome() {
             <div className="games-buttons">
               <button
                 className="btn btn-primary game-btn"
-                disabled={tokens < 1 || paying}
+                disabled={!windowActive && (tokens < 1 || paying)}
                 onClick={() => playGame("/games/hero-walk")}
               >
                 <span>HeroWalk</span>
-                <span className="game-btn-cost">
-                  <TokenIcon size={14} />1
-                </span>
+                {!windowActive && (
+                  <span className="game-btn-cost">
+                    <TokenIcon size={14} />1
+                  </span>
+                )}
               </button>
               <button
                 className="btn btn-primary game-btn"
-                disabled={tokens < 1 || paying}
+                disabled={!windowActive && (tokens < 1 || paying)}
                 onClick={() => playGame("/games/farmageddon")}
               >
                 <span>Farmageddon</span>
-                <span className="game-btn-cost">
-                  <TokenIcon size={14} />1
-                </span>
+                {!windowActive && (
+                  <span className="game-btn-cost">
+                    <TokenIcon size={14} />1
+                  </span>
+                )}
               </button>
             </div>
           </div>

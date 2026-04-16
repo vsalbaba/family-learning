@@ -4,6 +4,7 @@ import type { GameConfig, WaveConfig } from "../types";
 import { DEFAULT_CONFIG, FALLBACK_WAVES } from "../config";
 import { getWaveConfig } from "../../../api/farmageddon";
 import { useGameLoop } from "../hooks/useGameLoop";
+import { useGameWindow } from "../../../hooks/useGameWindow";
 import GameBoard from "./GameBoard";
 import Toolbar from "./Toolbar";
 import WaveIndicator from "./WaveIndicator";
@@ -53,6 +54,7 @@ function FarmageddonBoard({
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { view, setToolMode, restart } = useGameLoop(canvasRef, config);
+  const { isActive: canReplay } = useGameWindow();
 
   return (
     <div className="fg-game">
@@ -75,6 +77,7 @@ function FarmageddonBoard({
           summary={view.summary}
           onRetry={restart}
           onBack={() => navigate("/")}
+          canReplay={canReplay}
         />
       )}
     </div>

@@ -7,6 +7,7 @@ export interface User {
   reward_progress: number;
   reward_streak: number;
   game_tokens: number;
+  game_window_expires_at: string | null;
   pin_plain: string | null;
 }
 

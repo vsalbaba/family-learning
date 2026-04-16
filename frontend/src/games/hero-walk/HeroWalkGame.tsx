@@ -4,6 +4,7 @@ import type { Command, GameMap, HeroState, Enemy, SimulationResult } from "./typ
 import { MAX_COMMANDS, STEP_DELAY_MS, RESULT_DELAY_MS } from "./constants";
 import { simulate } from "./engine";
 import { generateMap } from "./mapgen";
+import { useGameWindow } from "../../hooks/useGameWindow";
 import Grid from "./Grid";
 import CommandPlan from "./CommandPlan";
 import CommandButtons from "./CommandButtons";
@@ -12,6 +13,7 @@ type GameState = "planning" | "running" | "finished";
 
 export default function HeroWalkGame() {
   const navigate = useNavigate();
+  const { isActive: canReplay } = useGameWindow();
   const [map, setMap] = useState<GameMap>(() => generateMap());
   const [plan, setPlan] = useState<Command[]>([]);
   const [gameState, setGameState] = useState<GameState>("planning");
@@ -191,11 +193,20 @@ export default function HeroWalkGame() {
             <p>A poklad v kapse!</p>
           )}
           <div className="hw-result-actions">
-            <button className="btn btn-primary" onClick={handleRetry}>
-              Zkusit znovu
-            </button>
-            <button className="btn btn-secondary" onClick={handleNewMap}>
-              Nová mapa
+            {canReplay ? (
+              <>
+                <button className="btn btn-primary" onClick={handleRetry}>
+                  Zkusit znovu
+                </button>
+                <button className="btn btn-secondary" onClick={handleNewMap}>
+                  Nová mapa
+                </button>
+              </>
+            ) : (
+              <p className="game-window-expired">Herní čas vypršel</p>
+            )}
+            <button className="btn btn-secondary" onClick={() => navigate("/")}>
+              Konec
             </button>
           </div>
         </div>
