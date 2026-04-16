@@ -118,6 +118,8 @@ export function createProjectile(
     speed: config.projectileSpeed,
     damage,
     sourceId,
+    state: "flying",
+    animTimer: 0,
   };
 }
 

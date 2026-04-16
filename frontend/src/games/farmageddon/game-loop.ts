@@ -1,5 +1,6 @@
 import type { GameState } from "./game-state";
 import type { ViewState } from "./types";
+import type { SpriteManager } from "./sprite-manager";
 import { render } from "./renderer";
 import { updateSpawner } from "./systems/spawner";
 import { updateEconomy } from "./systems/economy";
@@ -14,6 +15,7 @@ export interface GameLoop {
 export function createGameLoop(
   state: GameState,
   ctx: CanvasRenderingContext2D,
+  sprites: SpriteManager,
   onViewUpdate: (view: ViewState) => void,
 ): GameLoop {
   let lastTime = 0;
@@ -50,7 +52,7 @@ export function createGameLoop(
     }
 
     // 7. Render
-    render(ctx, state);
+    render(ctx, state, sprites, dt);
 
     // 8. Bridge to React (only if changed)
     const view = state.extractView();

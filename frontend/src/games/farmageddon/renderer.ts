@@ -1,5 +1,7 @@
 import type { GameState } from "./game-state";
-import type { GameConfig } from "./types";
+import type { Animal, GameConfig } from "./types";
+import type { SpriteManager } from "./sprite-manager";
+import { animalSpriteState, goblinSpriteState } from "./sprite-manager";
 
 // ── Colors ──────────────────────────────────────────────────────────
 
@@ -23,19 +25,27 @@ const COLORS = {
   facingArrow: "#333",
 };
 
+// ── Animation timer ─────────────────────────────────────────────────
+
+let globalTimer = 0;
+
 // ── Main render ─────────────────────────────────────────────────────
 
 export function render(
   ctx: CanvasRenderingContext2D,
   state: GameState,
+  sprites: SpriteManager,
+  dt: number,
 ): void {
+  globalTimer += dt;
+
   const { config } = state;
   const totalWidth = config.barnWidthPx + config.boardWidthPx;
   const totalHeight = config.boardHeightPx;
 
   ctx.clearRect(0, 0, totalWidth, totalHeight);
 
-  drawBarnArea(ctx, state);
+  drawBarnArea(ctx, state, sprites);
 
   // Shift drawing origin to playable board
   ctx.save();
@@ -43,16 +53,20 @@ export function render(
 
   drawBoard(ctx, config);
   drawSlotHighlights(ctx, state);
-  drawAnimals(ctx, state);
-  drawGoblins(ctx, state);
-  drawProjectiles(ctx, state);
+  drawAnimals(ctx, state, sprites);
+  drawGoblins(ctx, state, sprites);
+  drawProjectiles(ctx, state, sprites);
 
   ctx.restore();
 }
 
 // ── Barn area ───────────────────────────────────────────────────────
 
-function drawBarnArea(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawBarnArea(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  sprites: SpriteManager,
+): void {
   const { config } = state;
   const w = config.barnWidthPx;
   const h = config.boardHeightPx;
@@ -69,38 +83,38 @@ function drawBarnArea(ctx: CanvasRenderingContext2D, state: GameState): void {
   // Barn chicken
   const cx = w / 2;
   const cy = h / 2;
-  const radius = Math.min(w, h) * 0.2;
+  const drawSize = Math.min(w, h) * 0.5;
+  const barnState = state.barnChicken.eggReady ? "egg-ready" : "idle";
 
-  // Egg-ready glow
-  if (state.barnChicken.eggReady) {
-    ctx.fillStyle = COLORS.eggReady;
+  if (sprites.hasSprite("chicken")) {
+    sprites.draw(ctx, "chicken", barnState, globalTimer, cx, cy, drawSize, drawSize);
+  } else {
+    // Fallback: circle + emoji
+    const radius = Math.min(w, h) * 0.2;
+    if (state.barnChicken.eggReady) {
+      ctx.fillStyle = COLORS.eggReady;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = COLORS.chicken;
     ctx.beginPath();
-    ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "#b8941e";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    if (state.barnChicken.eggReady) {
+      ctx.fillStyle = COLORS.eggDot;
+      ctx.beginPath();
+      ctx.arc(cx, cy + radius * 0.5, radius * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#5a3e1a";
+    ctx.font = `bold ${Math.round(w * 0.15)}px sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillText("🐔", cx, cy + radius + 20);
   }
-
-  // Chicken body
-  ctx.fillStyle = COLORS.chicken;
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#b8941e";
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-
-  // Egg dot
-  if (state.barnChicken.eggReady) {
-    ctx.fillStyle = COLORS.eggDot;
-    ctx.beginPath();
-    ctx.arc(cx, cy + radius * 0.5, radius * 0.3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Label
-  ctx.fillStyle = "#5a3e1a";
-  ctx.font = `bold ${Math.round(w * 0.15)}px sans-serif`;
-  ctx.textAlign = "center";
-  ctx.fillText("🐔", cx, cy + radius + 20);
 }
 
 // ── Board ───────────────────────────────────────────────────────────
@@ -176,29 +190,70 @@ function drawSlotHighlights(
 
 // ── Animals ─────────────────────────────────────────────────────────
 
-function drawAnimals(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawAnimals(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  sprites: SpriteManager,
+): void {
   for (const animal of state.animals.values()) {
-    drawAnimal(ctx, animal, state);
+    drawAnimal(ctx, animal, state, sprites);
   }
 }
 
 function drawAnimal(
   ctx: CanvasRenderingContext2D,
-  animal: import("./types").Animal,
+  animal: Animal,
   state: GameState,
+  sprites: SpriteManager,
 ): void {
-  const size = Math.min(
+  const cellSize = Math.min(
     state.config.boardWidthPx / state.config.colCount,
     state.config.boardHeightPx / state.config.laneCount,
-  ) * 0.35;
-
+  );
+  const drawSize = cellSize * 0.7;
   const { x, y } = animal;
+
+  // Dying: shrink
+  let scale = 1;
+  let alpha = 1;
+  if (animal.state === "dying") {
+    const progress = 1 - animal.animTimer / state.config.dyingDurationMs;
+    scale = 1 - progress;
+    alpha = 1 - progress;
+    if (scale < 0.05) return;
+  }
+
+  const w = drawSize * scale;
+  const h = drawSize * scale;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Try sprite first
+  // For non-looping states (hit, dying), use elapsed time since state started.
+  // animTimer counts DOWN from the max duration, so elapsed = max - remaining.
+  const spriteState = animalSpriteState(animal.state);
+  let spriteTimer = globalTimer;
+  if (animal.state === "hit") {
+    spriteTimer = state.config.hitFlashMs - animal.animTimer;
+  } else if (animal.state === "dying") {
+    spriteTimer = state.config.dyingDurationMs - animal.animTimer;
+  }
+  // Llama sprites face right by default — flip when facing left
+  const flipX = animal.type === "llama" && animal.facing === "left";
+  if (sprites.hasSprite(animal.type) && sprites.draw(ctx, animal.type, spriteState, spriteTimer, x, y, w, h, flipX)) {
+    ctx.restore();
+    return;
+  }
+
+  // ── Fallback: circle + emoji ────────────────────────────────────
+  const radius = w / 2;
 
   // Hit flash
   if (animal.state === "hit") {
     ctx.fillStyle = COLORS.hitFlash;
     ctx.beginPath();
-    ctx.arc(x, y, size + 4, 0, Math.PI * 2);
+    ctx.arc(x, y, radius + 4, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -206,16 +261,8 @@ function drawAnimal(
   if (animal.type === "chicken" && animal.eggReady) {
     ctx.fillStyle = COLORS.eggReady;
     ctx.beginPath();
-    ctx.arc(x, y, size + 5, 0, Math.PI * 2);
+    ctx.arc(x, y, radius + 5, 0, Math.PI * 2);
     ctx.fill();
-  }
-
-  // Dying: shrink
-  let drawSize = size;
-  if (animal.state === "dying") {
-    const progress = 1 - animal.animTimer / state.config.dyingDurationMs;
-    drawSize = size * (1 - progress);
-    if (drawSize < 1) return;
   }
 
   // Body color
@@ -226,7 +273,7 @@ function drawAnimal(
   };
   ctx.fillStyle = colors[animal.type] ?? "#999";
   ctx.beginPath();
-  ctx.arc(x, y, drawSize, 0, Math.PI * 2);
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.3)";
   ctx.lineWidth = 1.5;
@@ -236,31 +283,23 @@ function drawAnimal(
   if (animal.type === "chicken" && animal.eggReady) {
     ctx.fillStyle = COLORS.eggDot;
     ctx.beginPath();
-    ctx.arc(x, y + drawSize * 0.4, drawSize * 0.3, 0, Math.PI * 2);
+    ctx.arc(x, y + radius * 0.4, radius * 0.3, 0, Math.PI * 2);
     ctx.fill();
   }
 
   // Facing arrow (llama)
   if (animal.type === "llama") {
-    const arrowDir = animal.facing === "right" ? 1 : -1;
-    const ax = x + arrowDir * (drawSize + 6);
-    ctx.fillStyle = COLORS.facingArrow;
-    ctx.beginPath();
-    ctx.moveTo(ax, y);
-    ctx.lineTo(ax - arrowDir * 8, y - 5);
-    ctx.lineTo(ax - arrowDir * 8, y + 5);
-    ctx.closePath();
-    ctx.fill();
+    drawFacingArrow(ctx, animal, radius);
   }
 
   // Ram horns indicator
   if (animal.type === "ram") {
     ctx.fillStyle = "#5a3a1a";
     ctx.beginPath();
-    ctx.arc(x + drawSize * 0.6, y - drawSize * 0.4, drawSize * 0.2, 0, Math.PI * 2);
+    ctx.arc(x + radius * 0.6, y - radius * 0.4, radius * 0.2, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(x + drawSize * 0.6, y + drawSize * 0.4, drawSize * 0.2, 0, Math.PI * 2);
+    ctx.arc(x + radius * 0.6, y + radius * 0.4, radius * 0.2, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -270,17 +309,39 @@ function drawAnimal(
     llama: "🦙",
     ram: "🐏",
   };
-  ctx.font = `${Math.round(drawSize * 0.9)}px sans-serif`;
+  ctx.font = `${Math.round(radius * 0.9)}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(emojis[animal.type] ?? "?", x, y);
+
+  ctx.restore();
+}
+
+function drawFacingArrow(
+  ctx: CanvasRenderingContext2D,
+  animal: Animal,
+  radius: number,
+): void {
+  const arrowDir = animal.facing === "right" ? 1 : -1;
+  const ax = animal.x + arrowDir * (radius + 6);
+  ctx.fillStyle = COLORS.facingArrow;
+  ctx.beginPath();
+  ctx.moveTo(ax, animal.y);
+  ctx.lineTo(ax - arrowDir * 8, animal.y - 5);
+  ctx.lineTo(ax - arrowDir * 8, animal.y + 5);
+  ctx.closePath();
+  ctx.fill();
 }
 
 // ── Goblins ─────────────────────────────────────────────────────────
 
-function drawGoblins(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawGoblins(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  sprites: SpriteManager,
+): void {
   for (const goblin of state.goblins.values()) {
-    drawGoblin(ctx, goblin, state);
+    drawGoblin(ctx, goblin, state, sprites);
   }
 }
 
@@ -288,47 +349,67 @@ function drawGoblin(
   ctx: CanvasRenderingContext2D,
   goblin: import("./types").Goblin,
   state: GameState,
+  sprites: SpriteManager,
 ): void {
-  const size = Math.min(
+  const cellSize = Math.min(
     state.config.boardWidthPx / state.config.colCount,
     state.config.boardHeightPx / state.config.laneCount,
-  ) * 0.3;
-
+  );
+  const drawSize = cellSize * 0.6;
   const { x, y } = goblin;
 
-  let drawSize = size;
+  let scale = 1;
   let alpha = 1;
 
   if (goblin.state === "spawning") {
     const progress = 1 - goblin.animTimer / state.config.spawningDurationMs;
-    drawSize = size * progress;
+    scale = progress;
     alpha = progress;
   } else if (goblin.state === "dying") {
     const progress = 1 - goblin.animTimer / state.config.dyingDurationMs;
-    drawSize = size * (1 - progress);
+    scale = 1 - progress;
     alpha = 1 - progress;
   }
 
-  if (drawSize < 1) return;
+  if (scale < 0.05) return;
 
+  const w = drawSize * scale;
+  const h = drawSize * scale;
+
+  ctx.save();
   ctx.globalAlpha = alpha;
 
-  // Body
+  // Sprite timer: use elapsed time for non-looping states
+  const spriteKey = `goblin-${goblin.goblinType}`;
+  const spriteState = goblinSpriteState(goblin.state);
+  let spriteTimer = globalTimer;
+  if (goblin.state === "spawning") {
+    spriteTimer = state.config.spawningDurationMs - goblin.animTimer;
+  } else if (goblin.state === "dying") {
+    spriteTimer = state.config.dyingDurationMs - goblin.animTimer;
+  }
+
+  if (sprites.hasSprite(spriteKey) && sprites.draw(ctx, spriteKey, spriteState, spriteTimer, x, y, w, h)) {
+    ctx.restore();
+    return;
+  }
+
+  // Fallback: circle + emoji
+  const radius = w / 2;
   ctx.fillStyle = goblin.state === "spawning" ? COLORS.goblinSpawning : COLORS.goblin;
   ctx.beginPath();
-  ctx.arc(x, y, drawSize, 0, Math.PI * 2);
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.3)";
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Emoji
-  ctx.font = `${Math.round(drawSize * 0.9)}px sans-serif`;
+  ctx.font = `${Math.round(radius * 0.9)}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("👹", x, y);
 
-  ctx.globalAlpha = 1;
+  ctx.restore();
 }
 
 // ── Projectiles ─────────────────────────────────────────────────────
@@ -336,8 +417,18 @@ function drawGoblin(
 function drawProjectiles(
   ctx: CanvasRenderingContext2D,
   state: GameState,
+  sprites: SpriteManager,
 ): void {
   for (const proj of state.projectiles.values()) {
+    const size = 24;
+    const flipX = proj.dx < 0;
+    const timer = proj.state === "hit" ? proj.animTimer : globalTimer;
+
+    if (sprites.hasSprite("spit") && sprites.draw(ctx, "spit", proj.state, timer, proj.x, proj.y, size, size, flipX)) {
+      continue;
+    }
+
+    // Fallback: colored circle
     ctx.fillStyle = COLORS.projectile;
     ctx.beginPath();
     ctx.arc(proj.x, proj.y, 5, 0, Math.PI * 2);

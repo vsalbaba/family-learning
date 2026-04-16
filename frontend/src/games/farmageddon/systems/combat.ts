@@ -16,6 +16,16 @@ function updateProjectiles(state: GameState, dt: number): void {
   const toRemove: number[] = [];
 
   for (const proj of state.projectiles.values()) {
+    // Hit state: tick timer then remove when done
+    if (proj.state === "hit") {
+      proj.animTimer += dt;
+      if (proj.animTimer >= state.config.projectileHitMs) {
+        toRemove.push(proj.id);
+      }
+      continue;
+    }
+
+    // Flying state
     proj.x += proj.dx * proj.speed * dtSec;
 
     // Out of bounds
@@ -41,7 +51,9 @@ function updateProjectiles(state: GameState, dt: number): void {
 
     if (hitGoblin) {
       applyDamageToGoblin(state, hitGoblin, proj.damage);
-      toRemove.push(proj.id);
+      proj.state = "hit";
+      proj.animTimer = 0;
+      proj.speed = 0;
     }
   }
 

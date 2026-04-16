@@ -81,6 +81,8 @@ export interface Goblin {
   targetId: EntityId | null; // currently targeted animal
 }
 
+export type ProjectileState = "flying" | "hit";
+
 export interface Projectile {
   id: EntityId;
   lane: number;
@@ -90,6 +92,8 @@ export interface Projectile {
   speed: number;    // px/s
   damage: number;
   sourceId: EntityId;
+  state: ProjectileState;
+  animTimer: number; // ms elapsed in current state
 }
 
 // ── Barn chicken (off-grid, invulnerable) ───────────────────────────
@@ -133,6 +137,7 @@ export interface GameConfig {
   spawningDurationMs: number;
   dyingDurationMs: number;
   hitFlashMs: number;
+  projectileHitMs: number;  // duration of spit splat animation
   waves: WaveConfig[];
 }
 

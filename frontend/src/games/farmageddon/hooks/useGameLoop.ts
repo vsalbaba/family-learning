@@ -3,6 +3,8 @@ import type { GameConfig, ToolMode, ViewState } from "../types";
 import { GameState } from "../game-state";
 import { createGameLoop } from "../game-loop";
 import { createInputHandler } from "../input-handler";
+import { createSpriteManager, SPRITE_PATHS } from "../sprite-manager";
+import type { SpriteManager } from "../sprite-manager";
 
 const INITIAL_VIEW: ViewState = {
   eggs: 0,
@@ -22,6 +24,7 @@ export function useGameLoop(
   const toolModeRef = useRef<ToolMode>({ kind: "idle" });
   const loopRef = useRef<{ stop(): void } | null>(null);
   const inputRef = useRef<ReturnType<typeof createInputHandler> | null>(null);
+  const spritesRef = useRef<SpriteManager | null>(null);
 
   const setToolMode = useCallback((mode: ToolMode) => {
     toolModeRef.current = mode;
@@ -29,6 +32,13 @@ export function useGameLoop(
       stateRef.current.toolMode = mode;
     }
     setView((prev) => ({ ...prev, toolMode: mode }));
+  }, []);
+
+  // Load sprites once
+  useEffect(() => {
+    const sprites = createSpriteManager();
+    spritesRef.current = sprites;
+    sprites.load(SPRITE_PATHS);
   }, []);
 
   // Init & start
@@ -50,8 +60,9 @@ export function useGameLoop(
     const state = new GameState(config);
     stateRef.current = state;
 
-    // Create game loop
-    const loop = createGameLoop(state, ctx, setView);
+    // Create game loop (sprites may still be loading — that's fine, it falls back)
+    const sprites = spritesRef.current ?? createSpriteManager();
+    const loop = createGameLoop(state, ctx, sprites, setView);
     loopRef.current = loop;
 
     // Create input handler
@@ -92,7 +103,8 @@ export function useGameLoop(
     stateRef.current = state;
     toolModeRef.current = { kind: "idle" };
 
-    const loop = createGameLoop(state, ctx, setView);
+    const sprites = spritesRef.current ?? createSpriteManager();
+    const loop = createGameLoop(state, ctx, sprites, setView);
     loopRef.current = loop;
 
     const input = createInputHandler(stateRef, toolModeRef, setToolMode);

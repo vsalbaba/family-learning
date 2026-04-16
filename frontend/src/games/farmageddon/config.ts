@@ -50,6 +50,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   spawningDurationMs: 200,
   dyingDurationMs: 300,
   hitFlashMs: 150,
+  projectileHitMs: 180,
 
   waves: [],   // loaded from backend; fallback below
 };
