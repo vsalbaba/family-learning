@@ -1152,6 +1152,12 @@ body {
   flex: 1;
 }
 
+.child-card__tokens {
+  font-size: 0.85rem;
+  color: #b8860b;
+  margin-right: 0.75rem;
+}
+
 .child-card__action {
   font-size: 0.85rem;
   color: var(--color-primary);

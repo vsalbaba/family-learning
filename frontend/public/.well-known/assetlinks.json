@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "cz.salbaba.familylearning",
+      "sha256_cert_fingerprints": [
+        "C2:C9:D5:E3:E7:80:7C:1D:09:7A:42:E9:42:3C:14:4B:85:17:FA:41:7B:95:83:55:E3:61:50:F9:B4:DD:41:2F"
+      ]
+    }
+  }
+]

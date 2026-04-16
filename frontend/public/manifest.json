@@ -1,0 +1,18 @@
+{
+  "name": "Family Learning",
+  "short_name": "FamLearn",
+  "description": "Procvičování pro děti",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

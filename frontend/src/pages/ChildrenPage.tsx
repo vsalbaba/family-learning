@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { listChildren, createChild, updateChild } from "../api/auth";
 import type { User } from "../types/user";
+import TokenIcon from "../components/common/TokenIcon";
 
 export default function ChildrenPage() {
   const navigate = useNavigate();
@@ -57,6 +58,7 @@ export default function ChildrenPage() {
               >
                 <span>{child.avatar || "🧒"}</span>
                 <span className="child-card__name">{child.name}</span>
+                <span className="child-card__tokens"><TokenIcon size={16} /> {child.game_tokens}</span>
                 <span className="child-card__action">Přehled</span>
               </div>
               <div className="child-card__pin-row">
