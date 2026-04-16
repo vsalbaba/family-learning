@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_child
@@ -9,21 +12,39 @@ from app.routers.auth import require_child
 router = APIRouter()
 
 
-@router.post("/consume-token")
-def consume_token(
+@router.post("/activate-window")
+def activate_window(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
-    """Consume one game token. Atomic SQL prevents race conditions."""
+    """Activate a timed game window. Idempotent: returns existing window if active."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Active window exists — return it without consuming a token
+    if user.game_window_expires_at and user.game_window_expires_at > now:
+        remaining = int((user.game_window_expires_at - now).total_seconds())
+        return {
+            "game_tokens": user.game_tokens,
+            "window_expires_at": user.game_window_expires_at.isoformat(),
+            "remaining_seconds": remaining,
+        }
+
+    # No active window — consume token and create one
+    expires = now + timedelta(seconds=settings.game_window_seconds)
     result = db.execute(
         text(
-            "UPDATE user SET game_tokens = game_tokens - 1"
+            "UPDATE user SET game_tokens = game_tokens - 1,"
+            " game_window_expires_at = :expires"
             " WHERE id = :uid AND game_tokens > 0"
         ),
-        {"uid": user.id},
+        {"uid": user.id, "expires": expires.isoformat()},
     )
     db.commit()
     if result.rowcount == 0:
         raise HTTPException(status_code=400, detail="No tokens available")
     db.refresh(user)
-    return {"game_tokens": user.game_tokens}
+    return {
+        "game_tokens": user.game_tokens,
+        "window_expires_at": user.game_window_expires_at.isoformat(),
+        "remaining_seconds": settings.game_window_seconds,
+    }

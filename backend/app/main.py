@@ -59,6 +59,11 @@ def _migrate_add_columns(eng):
             raw.execute(f"UPDATE user SET {col} = 0 WHERE {col} IS NULL")
         raw.commit()
 
+        # User table: game window column
+        if "game_window_expires_at" not in user_columns:
+            raw.execute("ALTER TABLE user ADD COLUMN game_window_expires_at TEXT")
+        raw.commit()
+
         # User table: pin_plain column
         if "pin_plain" not in user_columns:
             raw.execute("ALTER TABLE user ADD COLUMN pin_plain TEXT")

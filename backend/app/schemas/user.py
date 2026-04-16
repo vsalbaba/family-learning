@@ -28,6 +28,7 @@ class UserResponse(BaseModel):
     reward_progress: int = 0
     reward_streak: int = 0
     game_tokens: int = 0
+    game_window_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

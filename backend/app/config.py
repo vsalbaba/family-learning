@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     parent_pin: str = "1234"
     tts_voices_dir: str = "voices"
     tts_cache_dir: str = "data/tts_cache"
+    game_window_seconds: int = 180
 
     model_config = {"env_prefix": "", "case_sensitive": False}
 
