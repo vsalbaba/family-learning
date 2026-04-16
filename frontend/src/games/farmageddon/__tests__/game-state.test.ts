@@ -38,13 +38,15 @@ function tickAll(state: GameState, dt: number) {
 }
 
 describe("game state integration", () => {
-  it("initializes with 3 chickens in column 0", () => {
+  it("initializes with 3 chickens in column 0 with eggs ready", () => {
     const state = new GameState(makeConfig([]));
     expect(state.animals.size).toBe(3);
 
     for (const animal of state.animals.values()) {
       expect(animal.type).toBe("chicken");
       expect(animal.col).toBe(0);
+      expect(animal.eggReady).toBe(true);
+      expect(animal.state).toBe("egg-ready");
     }
 
     // Grid should have entries in column 0
@@ -84,13 +86,10 @@ describe("game state integration", () => {
     expect(goblin.x).toBeLessThan(0);
   });
 
-  it("full economy cycle: lay → collect → place", () => {
+  it("full economy cycle: collect → place → sell", () => {
     const state = new GameState(makeConfig([]));
 
-    // Tick economy until egg is ready
-    for (let i = 0; i < 50; i++) tickAll(state, 100);
-
-    // Find a chicken with an egg
+    // Starting chickens already have eggs ready
     const chicken = [...state.animals.values()].find((a) => a.eggReady);
     expect(chicken).toBeDefined();
 
@@ -103,6 +102,10 @@ describe("game state integration", () => {
     expect(llama).not.toBeNull();
     expect(llama!.type).toBe("llama");
     expect(state.eggs).toBe(0);
+
+    // Sell returns 1 egg
+    state.sellAnimal(llama!.id);
+    expect(state.eggs).toBe(1);
   });
 
   it("goblin spawns and moves left over time", () => {

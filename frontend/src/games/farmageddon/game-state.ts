@@ -58,9 +58,12 @@ export class GameState {
       Array<EntityId | null>(config.colCount).fill(null),
     );
 
-    // Place starting chickens in column 0
+    // Place starting chickens in column 0 with egg already laid
     for (let lane = 0; lane < config.laneCount; lane++) {
       const chicken = createAnimal("chicken", lane, 0, config);
+      chicken.eggReady = true;
+      chicken.eggTimer = 0;
+      chicken.state = "egg-ready";
       this.animals.set(chicken.id, chicken);
       this.grid[lane][0] = chicken.id;
     }
@@ -163,6 +166,7 @@ export class GameState {
     if (!animal) return false;
     this.grid[animal.lane][animal.col] = null;
     this.animals.delete(id);
+    this.eggs++;
     return true;
   }
 

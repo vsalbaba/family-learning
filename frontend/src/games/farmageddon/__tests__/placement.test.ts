@@ -50,15 +50,17 @@ describe("placement system", () => {
     expect(state.addAnimal("llama", 3, 0)).toBeNull();
   });
 
-  it("selling frees the slot", () => {
+  it("selling frees the slot and returns 1 egg", () => {
     state.eggs = 1;
     const llama = state.addAnimal("llama", 0, 1)!;
+    expect(state.eggs).toBe(0);
     expect(state.grid[0][1]).toBe(llama.id);
 
     const result = state.sellAnimal(llama.id);
     expect(result).toBe(true);
     expect(state.grid[0][1]).toBeNull();
     expect(state.animals.has(llama.id)).toBe(false);
+    expect(state.eggs).toBe(1);
   });
 
   it("selling nonexistent animal returns false", () => {

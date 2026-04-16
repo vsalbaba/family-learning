@@ -15,29 +15,30 @@ describe("economy system", () => {
     state = new GameState(makeConfig());
   });
 
-  it("starts chickens with egg timer running and eggReady false", () => {
+  it("starting chickens begin with egg already laid", () => {
     for (const animal of state.animals.values()) {
       expect(animal.type).toBe("chicken");
-      expect(animal.eggReady).toBe(false);
-      expect(animal.eggTimer).toBe(DEFAULT_CONFIG.eggLayIntervalMs);
-    }
-  });
-
-  it("chicken produces egg after eggLayIntervalMs", () => {
-    updateEconomy(state, DEFAULT_CONFIG.eggLayIntervalMs);
-
-    for (const animal of state.animals.values()) {
       expect(animal.eggReady).toBe(true);
       expect(animal.state).toBe("egg-ready");
     }
   });
 
-  it("chicken does not produce egg before interval completes", () => {
-    updateEconomy(state, DEFAULT_CONFIG.eggLayIntervalMs - 1);
+  it("chicken produces next egg after collecting and waiting", () => {
+    const chicken = [...state.animals.values()][0];
+    state.collectEgg(chicken.id);
+    expect(chicken.eggReady).toBe(false);
 
-    for (const animal of state.animals.values()) {
-      expect(animal.eggReady).toBe(false);
-    }
+    updateEconomy(state, DEFAULT_CONFIG.eggLayIntervalMs);
+    expect(chicken.eggReady).toBe(true);
+    expect(chicken.state).toBe("egg-ready");
+  });
+
+  it("chicken does not produce egg before interval completes", () => {
+    const chicken = [...state.animals.values()][0];
+    state.collectEgg(chicken.id);
+
+    updateEconomy(state, DEFAULT_CONFIG.eggLayIntervalMs - 1);
+    expect(chicken.eggReady).toBe(false);
   });
 
   it("collecting egg resets timer and increments egg count", () => {
@@ -55,9 +56,13 @@ describe("economy system", () => {
 
   it("cannot collect egg when not ready", () => {
     const chicken = [...state.animals.values()][0];
+    // Collect the initial egg first
+    state.collectEgg(chicken.id);
+    expect(chicken.eggReady).toBe(false);
+
+    // Now trying to collect again should fail
     const result = state.collectEgg(chicken.id);
     expect(result).toBe(false);
-    expect(state.eggs).toBe(0);
   });
 
   it("barn chicken produces egg on its own timer", () => {
