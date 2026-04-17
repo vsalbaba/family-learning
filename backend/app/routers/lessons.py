@@ -52,21 +52,32 @@ def list_subjects(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
-    """Return distinct subjects from published packages with counts."""
+    """Return distinct subject+grade combinations from published packages."""
     rows = (
         db.query(
             Package.subject,
+            Package.grade,
             func.min(Package.subject_display).label("display"),
             func.count(Package.id).label("count"),
         )
         .filter(Package.status == "published", Package.subject.isnot(None))
-        .group_by(Package.subject)
+        .group_by(Package.subject, Package.grade)
         .all()
     )
-    return [
-        {"subject": subj, "display": display or subj, "package_count": cnt}
-        for subj, display, cnt in rows
-    ]
+    result = []
+    for subj, grade, display, cnt in rows:
+        base_display = display or subj
+        if grade is not None:
+            full_display = f"{base_display}, {grade}. ročník"
+        else:
+            full_display = base_display
+        result.append({
+            "subject": subj,
+            "grade": grade,
+            "display": full_display,
+            "package_count": cnt,
+        })
+    return result
 
 
 @router.post("/start")
@@ -84,6 +95,7 @@ def lesson_start(
         else:
             session, first_item = start_subject_lesson(
                 db, user.id, req.subject, req.question_count,
+                grade=req.grade,
                 child_user=user,
             )
     except ValueError as e:
