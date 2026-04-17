@@ -19,6 +19,7 @@ export interface RewardInfo {
   progress: number;
   streak: number;
   game_tokens: number;
+  tokens_suppressed: boolean;
 }
 
 export interface AnswerResponse {

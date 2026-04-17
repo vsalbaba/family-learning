@@ -6,6 +6,14 @@ interface Props {
 }
 
 export default function RewardFeedback({ reward }: Props) {
+  if (reward.tokens_suppressed) {
+    return (
+      <div className="reward-feedback">
+        <span className="reward-suppressed">Žetony jen za těžší úlohy</span>
+      </div>
+    );
+  }
+
   return (
     <div className="reward-feedback">
       <span

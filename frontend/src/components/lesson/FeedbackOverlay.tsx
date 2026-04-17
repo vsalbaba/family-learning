@@ -95,7 +95,7 @@ export default function FeedbackOverlay({
         </p>
       )}
       {explanation && <p className="feedback-explanation">{explanation}</p>}
-      {reward && reward.progress_gained > 0 && <RewardFeedback reward={reward} />}
+      {reward && (reward.progress_gained > 0 || reward.tokens_suppressed) && <RewardFeedback reward={reward} />}
       <button className="btn btn-primary" onClick={onContinue} autoFocus>
         Pokračovat
       </button>

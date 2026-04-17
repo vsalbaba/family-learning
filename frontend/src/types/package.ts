@@ -21,6 +21,8 @@ export interface PackageSummary {
   updated_at: string;
   published_at: string | null;
   tts_lang: string | null;
+  grade: number | null;
+  topic: string | null;
   item_count: number;
 }
 

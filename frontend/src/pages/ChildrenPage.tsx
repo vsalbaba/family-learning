@@ -9,9 +9,10 @@ export default function ChildrenPage() {
   const [children, setChildren] = useState<User[]>([]);
   const [name, setName] = useState("");
   const [pin, setPin] = useState("");
+  const [grade, setGrade] = useState("");
   const [loading, setLoading] = useState(true);
-  const [editingPinId, setEditingPinId] = useState<number | null>(null);
-  const [newPin, setNewPin] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", grade: "", pin: "" });
 
   useEffect(() => {
     listChildren()
@@ -21,18 +22,45 @@ export default function ChildrenPage() {
 
   async function handleAdd() {
     if (!name.trim() || !pin.trim()) return;
-    const child = await createChild(name.trim(), pin.trim());
+    const gradeNum = grade ? parseInt(grade) : undefined;
+    const child = await createChild(name.trim(), pin.trim(), undefined, gradeNum);
     setChildren((c) => [...c, child]);
     setName("");
     setPin("");
+    setGrade("");
   }
 
-  async function handleChangePin(childId: number) {
-    if (!newPin.trim()) return;
-    const updated = await updateChild(childId, { pin: newPin.trim() });
+  function startEditing(child: User) {
+    setEditForm({
+      name: child.name,
+      grade: child.grade != null ? String(child.grade) : "",
+      pin: "",
+    });
+    setEditingId(child.id);
+  }
+
+  async function handleSaveEdit(childId: number) {
+    const data: Record<string, unknown> = {};
+    const child = children.find((c) => c.id === childId);
+    if (!child) return;
+    if (editForm.name.trim() && editForm.name.trim() !== child.name) {
+      data.name = editForm.name.trim();
+    }
+    const newGrade = editForm.grade ? parseInt(editForm.grade) : 0;
+    const currentGrade = child.grade ?? 0;
+    if (newGrade !== currentGrade) {
+      data.grade = newGrade;
+    }
+    if (editForm.pin.trim()) {
+      data.pin = editForm.pin.trim();
+    }
+    if (Object.keys(data).length === 0) {
+      setEditingId(null);
+      return;
+    }
+    const updated = await updateChild(childId, data);
     setChildren((c) => c.map((ch) => (ch.id === childId ? updated : ch)));
-    setEditingPinId(null);
-    setNewPin("");
+    setEditingId(null);
   }
 
   return (
@@ -58,6 +86,7 @@ export default function ChildrenPage() {
               >
                 <span>{child.avatar || "🧒"}</span>
                 <span className="child-card__name">{child.name}</span>
+                {child.grade != null && <span className="tag">{child.grade}. ročník</span>}
                 <span className="child-card__tokens"><TokenIcon size={16} /> {child.game_tokens}</span>
                 <button
                   className="btn btn-small btn-secondary child-card__add-token"
@@ -71,45 +100,65 @@ export default function ChildrenPage() {
                 </button>
                 <span className="child-card__action">Přehled</span>
               </div>
-              <div className="child-card__pin-row">
-                {editingPinId === child.id ? (
-                  <>
+              {editingId === child.id ? (
+                <div className="child-card__edit-form">
+                  <label>
+                    Jméno
                     <input
                       type="text"
-                      placeholder="Nový PIN"
-                      value={newPin}
-                      onChange={(e) => setNewPin(e.target.value)}
-                      maxLength={6}
-                      onClick={(e) => e.stopPropagation()}
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                     />
+                  </label>
+                  <label>
+                    Ročník
+                    <input
+                      type="number"
+                      min="1"
+                      max="13"
+                      placeholder="—"
+                      value={editForm.grade}
+                      onChange={(e) => setEditForm({ ...editForm, grade: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    Nový PIN
+                    <input
+                      type="text"
+                      placeholder="ponechat stávající"
+                      value={editForm.pin}
+                      onChange={(e) => setEditForm({ ...editForm, pin: e.target.value })}
+                      maxLength={6}
+                    />
+                  </label>
+                  <div className="editor-actions">
                     <button
                       className="btn btn-small btn-primary"
-                      onClick={() => handleChangePin(child.id)}
-                      disabled={!newPin.trim()}
+                      onClick={() => handleSaveEdit(child.id)}
                     >
                       Uložit
                     </button>
                     <button
                       className="btn btn-small btn-secondary"
-                      onClick={() => { setEditingPinId(null); setNewPin(""); }}
+                      onClick={() => setEditingId(null)}
                     >
                       Zrušit
                     </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="child-card__pin">
-                      PIN: {child.pin_plain || "—"}
-                    </span>
-                    <button
-                      className="btn btn-small btn-secondary"
-                      onClick={() => { setEditingPinId(child.id); setNewPin(""); }}
-                    >
-                      Změnit PIN
-                    </button>
-                  </>
-                )}
-              </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="child-card__pin-row">
+                  <span className="child-card__pin">
+                    PIN: {child.pin_plain || "—"}
+                  </span>
+                  <button
+                    className="btn btn-small btn-secondary"
+                    onClick={() => startEditing(child)}
+                  >
+                    Upravit
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -129,6 +178,14 @@ export default function ChildrenPage() {
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           maxLength={6}
+        />
+        <input
+          type="number"
+          placeholder="Ročník"
+          min="1"
+          max="13"
+          value={grade}
+          onChange={(e) => setGrade(e.target.value)}
         />
         <button
           className="btn btn-primary"

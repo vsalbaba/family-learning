@@ -35,7 +35,7 @@ export default function PackageDetailPage() {
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [addingType, setAddingType] = useState<ActivityType | null>(null);
   const [editingMeta, setEditingMeta] = useState(false);
-  const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "" });
+  const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "", grade: "", topic: "" });
   const [merging, setMerging] = useState(false);
   const [otherPackages, setOtherPackages] = useState<PackageSummary[]>([]);
   const [selectedSources, setSelectedSources] = useState<Set<number>>(new Set());
@@ -77,6 +77,8 @@ export default function PackageDetailPage() {
       difficulty: pkg.difficulty ?? "",
       description: pkg.description ?? "",
       tts_lang: pkg.tts_lang ?? "",
+      grade: pkg.grade != null ? String(pkg.grade) : "",
+      topic: pkg.topic ?? "",
     });
     setEditingMeta(true);
   }
@@ -90,6 +92,8 @@ export default function PackageDetailPage() {
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
       tts_lang: metaForm.tts_lang || "",
+      grade: metaForm.grade ? parseInt(metaForm.grade) : 0,
+      topic: metaForm.topic || "",
     });
     setPkg({
       ...pkg,
@@ -98,6 +102,8 @@ export default function PackageDetailPage() {
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
       tts_lang: metaForm.tts_lang || null,
+      grade: metaForm.grade ? parseInt(metaForm.grade) : null,
+      topic: metaForm.topic || null,
     });
     setEditingMeta(false);
   }
@@ -182,6 +188,8 @@ export default function PackageDetailPage() {
           <h2>{pkg.name}</h2>
           <div className="package-meta">
             {pkg.subject && <span className="tag">{pkg.subject}</span>}
+            {pkg.grade != null && <span className="tag">{pkg.grade}. ročník</span>}
+            {pkg.topic && <span className="tag">{pkg.topic}</span>}
             {pkg.difficulty && <span className="tag">{pkg.difficulty}</span>}
             {pkg.tts_lang && <span className="tag">TTS: {pkg.tts_lang}</span>}
             <span className={`status-badge status-badge--${pkg.status}`}>
@@ -244,6 +252,25 @@ export default function PackageDetailPage() {
             <input
               value={metaForm.subject}
               onChange={(e) => setMetaForm({ ...metaForm, subject: e.target.value })}
+            />
+          </label>
+          <label>
+            Ročník
+            <input
+              type="number"
+              min="1"
+              max="13"
+              value={metaForm.grade}
+              onChange={(e) => setMetaForm({ ...metaForm, grade: e.target.value })}
+              placeholder="—"
+            />
+          </label>
+          <label>
+            Téma
+            <input
+              value={metaForm.topic}
+              onChange={(e) => setMetaForm({ ...metaForm, topic: e.target.value })}
+              placeholder="např. malá násobilka"
             />
           </label>
           <label>

@@ -17,15 +17,15 @@ export function getMe() {
   return get<User>("/auth/me");
 }
 
-export function createChild(name: string, pin: string, avatar?: string) {
-  return post<User>("/children", { name, pin, avatar });
+export function createChild(name: string, pin: string, avatar?: string, grade?: number) {
+  return post<User>("/children", { name, pin, avatar, grade });
 }
 
 export function listChildren() {
   return get<User[]>("/children");
 }
 
-export function updateChild(childId: number, data: { name?: string; pin?: string; game_tokens?: number }) {
+export function updateChild(childId: number, data: { name?: string; pin?: string; game_tokens?: number; grade?: number | null }) {
   return put<User>(`/children/${childId}`, data);
 }
 

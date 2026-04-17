@@ -22,7 +22,9 @@ export default function SubjectGrid() {
             key={s.subject}
             className="subject-tile"
             onClick={() =>
-              navigate(`/lesson/subject/${encodeURIComponent(s.subject)}`)
+              navigate(
+                `/lesson/subject/${encodeURIComponent(s.subject)}${s.grade != null ? `?grade=${s.grade}` : ""}`
+              )
             }
           >
             <span className="subject-tile__name">{s.display}</span>
