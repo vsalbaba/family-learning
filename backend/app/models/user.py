@@ -25,5 +25,6 @@ class User(Base):
     reward_streak: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     game_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     game_window_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     children = relationship("User", backref="parent", remote_side="User.id", foreign_keys="User.parent_id")

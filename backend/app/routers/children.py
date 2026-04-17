@@ -48,6 +48,7 @@ def create_child(
         pin_plain=req.pin,
         parent_id=user.id,
         avatar=req.avatar,
+        grade=req.grade,
     )
     db.add(child)
     db.commit()
@@ -76,6 +77,8 @@ def update_child(
         child.avatar = req.avatar
     if req.game_tokens is not None:
         child.game_tokens = req.game_tokens
+    if req.grade is not None:
+        child.grade = req.grade if req.grade > 0 else None
     db.commit()
     db.refresh(child)
     return child

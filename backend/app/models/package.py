@@ -30,6 +30,8 @@ class Package(Base):
     )
     published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     tts_lang: Mapped[str | None] = mapped_column(String, nullable=True)
+    grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    topic: Mapped[str | None] = mapped_column(String, nullable=True)
 
     items: Mapped[list["Item"]] = relationship(
         "Item", back_populates="package", cascade="all, delete-orphan",

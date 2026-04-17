@@ -29,6 +29,7 @@ class UserResponse(BaseModel):
     reward_streak: int = 0
     game_tokens: int = 0
     game_window_expires_at: datetime | None = None
+    grade: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -41,6 +42,7 @@ class ChildCreate(BaseModel):
     name: str
     pin: str
     avatar: str | None = None
+    grade: int | None = None
 
 
 class ChildUpdate(BaseModel):
@@ -48,3 +50,4 @@ class ChildUpdate(BaseModel):
     pin: str | None = None
     avatar: str | None = None
     game_tokens: int | None = None
+    grade: int | None = None

@@ -41,6 +41,10 @@ def _migrate_add_columns(eng):
                 "UPDATE package SET subject = LOWER(TRIM(subject))"
                 " WHERE subject IS NOT NULL"
             )
+        if "grade" not in pkg_columns:
+            raw.execute("ALTER TABLE package ADD COLUMN grade INTEGER")
+        if "topic" not in pkg_columns:
+            raw.execute("ALTER TABLE package ADD COLUMN topic TEXT")
         raw.commit()
 
         # Session table migration: make package_id nullable, add subject
@@ -69,6 +73,11 @@ def _migrate_add_columns(eng):
             raw.execute("ALTER TABLE user ADD COLUMN pin_plain TEXT")
         raw.commit()
 
+        # User table: grade column
+        if "grade" not in user_columns:
+            raw.execute("ALTER TABLE user ADD COLUMN grade INTEGER")
+        raw.commit()
+
         # Session table: extension_count column
         cursor = raw.execute("PRAGMA table_info(session)")
         sess_columns = {row[1] for row in cursor.fetchall()}
@@ -77,6 +86,8 @@ def _migrate_add_columns(eng):
                 "ALTER TABLE session ADD COLUMN extension_count INTEGER NOT NULL DEFAULT 0"
             )
         raw.execute("UPDATE session SET extension_count = 0 WHERE extension_count IS NULL")
+        if "grade" not in sess_columns:
+            raw.execute("ALTER TABLE session ADD COLUMN grade INTEGER")
         raw.commit()
 
 

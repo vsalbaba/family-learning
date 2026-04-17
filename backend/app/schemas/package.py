@@ -44,6 +44,8 @@ class PackageResponse(BaseModel):
     updated_at: datetime
     published_at: datetime | None = None
     tts_lang: str | None = None
+    grade: int | None = None
+    topic: str | None = None
     item_count: int = 0
 
     model_config = {"from_attributes": True}
@@ -59,6 +61,8 @@ class PackageUpdateRequest(BaseModel):
     difficulty: str | None = None
     description: str | None = None
     tts_lang: str | None = None
+    grade: int | None = None
+    topic: str | None = None
 
 
 class ItemUpdateRequest(BaseModel):

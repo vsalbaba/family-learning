@@ -53,6 +53,8 @@ def _package_to_response(pkg: Package) -> PackageResponse:
         updated_at=pkg.updated_at,
         published_at=pkg.published_at,
         tts_lang=pkg.tts_lang,
+        grade=pkg.grade,
+        topic=pkg.topic,
         item_count=len(pkg.items),
     )
 
@@ -95,6 +97,8 @@ def _import_package(
         difficulty=meta.get("difficulty"),
         description=meta.get("description"),
         tts_lang=meta.get("tts_lang"),
+        grade=meta.get("grade"),
+        topic=meta.get("topic"),
         status="draft",
         raw_json=raw_json,
         validation_warnings=json.dumps([
@@ -186,7 +190,19 @@ def list_packages(
     query = db.query(Package)
     if user.role == "child":
         query = query.filter(Package.status == "published")
-    packages = query.order_by(Package.created_at.desc()).all()
+        packages = query.all()
+        if user.grade is not None:
+            def _sort_key(pkg):
+                if pkg.grade is None:
+                    return (1, "", pkg.name)
+                if pkg.grade >= user.grade:
+                    return (0, pkg.grade, pkg.name)
+                return (2, -pkg.grade, pkg.name)
+            packages.sort(key=_sort_key)
+        else:
+            packages.sort(key=lambda p: p.created_at or p.id, reverse=True)
+    else:
+        packages = query.order_by(Package.created_at.desc()).all()
     return [_package_to_response(p) for p in packages]
 
 
@@ -232,6 +248,10 @@ def update_package(
         pkg.description = req.description
     if req.tts_lang is not None:
         pkg.tts_lang = req.tts_lang if req.tts_lang != "" else None
+    if req.grade is not None:
+        pkg.grade = req.grade if req.grade > 0 else None
+    if req.topic is not None:
+        pkg.topic = req.topic.strip() if req.topic.strip() else None
     pkg.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(pkg)
@@ -400,6 +420,10 @@ def export_package(
     }
     if pkg.tts_lang:
         metadata["tts_lang"] = pkg.tts_lang
+    if pkg.grade is not None:
+        metadata["grade"] = pkg.grade
+    if pkg.topic:
+        metadata["topic"] = pkg.topic
     return {
         "metadata": metadata,
         "items": items_out,
