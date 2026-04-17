@@ -74,6 +74,8 @@ def update_child(
         child.pin_plain = req.pin
     if req.avatar is not None:
         child.avatar = req.avatar
+    if req.game_tokens is not None:
+        child.game_tokens = req.game_tokens
     db.commit()
     db.refresh(child)
     return child

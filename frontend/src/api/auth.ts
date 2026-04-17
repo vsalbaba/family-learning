@@ -25,7 +25,7 @@ export function listChildren() {
   return get<User[]>("/children");
 }
 
-export function updateChild(childId: number, data: { name?: string; pin?: string }) {
+export function updateChild(childId: number, data: { name?: string; pin?: string; game_tokens?: number }) {
   return put<User>(`/children/${childId}`, data);
 }
 

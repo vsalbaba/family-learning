@@ -47,3 +47,4 @@ class ChildUpdate(BaseModel):
     name: str | None = None
     pin: str | None = None
     avatar: str | None = None
+    game_tokens: int | None = None

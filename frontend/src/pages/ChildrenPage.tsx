@@ -59,6 +59,16 @@ export default function ChildrenPage() {
                 <span>{child.avatar || "🧒"}</span>
                 <span className="child-card__name">{child.name}</span>
                 <span className="child-card__tokens"><TokenIcon size={16} /> {child.game_tokens}</span>
+                <button
+                  className="btn btn-small btn-secondary child-card__add-token"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    const updated = await updateChild(child.id, { game_tokens: child.game_tokens + 1 });
+                    setChildren((c) => c.map((ch) => (ch.id === child.id ? updated : ch)));
+                  }}
+                >
+                  +1
+                </button>
                 <span className="child-card__action">Přehled</span>
               </div>
               <div className="child-card__pin-row">

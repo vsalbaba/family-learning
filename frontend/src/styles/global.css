@@ -1168,7 +1168,13 @@ body {
 .child-card__tokens {
   font-size: 0.85rem;
   color: #b8860b;
-  margin-right: 0.75rem;
+  margin-right: 0.25rem;
+}
+
+.child-card__add-token {
+  margin-right: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
 }
 
 .child-card__action {
