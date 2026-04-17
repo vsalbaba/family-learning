@@ -38,6 +38,10 @@ export function deletePackage(id: number) {
   return del(`/packages/${id}`);
 }
 
+export function mergePackages(targetId: number, sourceIds: number[]) {
+  return post<PackageDetail>(`/packages/${targetId}/merge`, { source_ids: sourceIds });
+}
+
 export function exportPackage(id: number) {
   return get<unknown>(`/packages/${id}/export`);
 }

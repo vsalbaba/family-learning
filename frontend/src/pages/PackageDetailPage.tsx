@@ -2,17 +2,19 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getPackage,
+  listPackages,
   updatePackage,
   publishPackage,
   unpublishPackage,
   archivePackage,
   deletePackage,
+  mergePackages,
   updateItem,
   createItem,
   deleteItem,
   exportPackage,
 } from "../api/packages";
-import type { ActivityType, PackageDetail, PackageItem } from "../types/package";
+import type { ActivityType, PackageDetail, PackageItem, PackageSummary } from "../types/package";
 import ItemEditor from "../components/packages/ItemEditor";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -34,6 +36,9 @@ export default function PackageDetailPage() {
   const [addingType, setAddingType] = useState<ActivityType | null>(null);
   const [editingMeta, setEditingMeta] = useState(false);
   const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "" });
+  const [merging, setMerging] = useState(false);
+  const [otherPackages, setOtherPackages] = useState<PackageSummary[]>([]);
+  const [selectedSources, setSelectedSources] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (id) {
@@ -114,6 +119,42 @@ export default function PackageDetailPage() {
     setAddingType(null);
   }
 
+  async function startMerge() {
+    const all = await listPackages();
+    setOtherPackages(all.filter((p) => p.id !== pkg?.id));
+    setSelectedSources(new Set());
+    setMerging(true);
+  }
+
+  function toggleSource(id: number) {
+    setSelectedSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleMerge() {
+    if (!pkg || selectedSources.size === 0) return;
+    const sourceIds = Array.from(selectedSources);
+    const names = otherPackages
+      .filter((p) => sourceIds.includes(p.id))
+      .map((p) => p.name);
+    const totalItems = otherPackages
+      .filter((p) => sourceIds.includes(p.id))
+      .reduce((sum, p) => sum + p.item_count, 0);
+    if (
+      !confirm(
+        `Sloučit ${names.length} balíčk${names.length === 1 ? "" : names.length < 5 ? "y" : "ů"} (${totalItems} otázek) do "${pkg.name}"?\n\nZdrojové balíčky budou smazány:\n${names.map((n) => `• ${n}`).join("\n")}`
+      )
+    )
+      return;
+    const updated = await mergePackages(pkg.id, sourceIds);
+    setPkg(updated);
+    setMerging(false);
+  }
+
   async function handleDeleteItem(item: PackageItem) {
     if (!pkg) return;
     if (!confirm(`Smazat otázku "${item.question}"?`)) return;
@@ -160,6 +201,11 @@ export default function PackageDetailPage() {
           {!editingMeta && (
             <button className="btn btn-small btn-secondary" onClick={startEditMeta}>
               Upravit metadata
+            </button>
+          )}
+          {!merging && (
+            <button className="btn btn-small btn-secondary" onClick={startMerge}>
+              Sloučit
             </button>
           )}
           <button
@@ -239,6 +285,42 @@ export default function PackageDetailPage() {
         </form>
       ) : (
         pkg.description && <p>{pkg.description}</p>
+      )}
+
+      {merging && (
+        <div className="merge-panel">
+          <h3>Sloučit do tohoto balíčku</h3>
+          {otherPackages.length === 0 ? (
+            <p>Žádné další balíčky k sloučení.</p>
+          ) : (
+            <div className="merge-list">
+              {otherPackages.map((p) => (
+                <label key={p.id} className="merge-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedSources.has(p.id)}
+                    onChange={() => toggleSource(p.id)}
+                  />
+                  <span className="merge-item__name">{p.name}</span>
+                  <span className="merge-item__count">({p.item_count} otázek)</span>
+                  <span className={`status-badge status-badge--${p.status}`}>{p.status}</span>
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="editor-actions">
+            <button
+              className="btn btn-primary"
+              onClick={handleMerge}
+              disabled={selectedSources.size === 0}
+            >
+              Sloučit vybrané
+            </button>
+            <button className="btn btn-secondary" onClick={() => setMerging(false)}>
+              Zrušit
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="package-actions">

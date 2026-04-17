@@ -85,3 +85,7 @@ class PackageImportRequest(BaseModel):
 class PackageImportResponse(BaseModel):
     package: PackageResponse | None = None
     validation: ValidationResult
+
+
+class MergeRequest(BaseModel):
+    source_ids: list[int]

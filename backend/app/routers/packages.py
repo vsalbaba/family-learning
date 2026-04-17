@@ -6,12 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.package import Item, Package
-from app.models.session import Answer
+from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import get_current_user, require_parent
 from app.schemas.package import (
     ItemCreateRequest,
     ItemUpdateRequest,
+    MergeRequest,
     PackageDetailResponse,
     PackageImportRequest,
     PackageImportResponse,
@@ -300,6 +301,71 @@ def delete_package(
         )
     db.delete(pkg)
     db.commit()
+
+
+@router.post("/{package_id}/merge", response_model=PackageDetailResponse)
+def merge_packages(
+    package_id: int,
+    req: MergeRequest,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    target = db.query(Package).filter(Package.id == package_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="Target package not found")
+
+    if package_id in req.source_ids:
+        raise HTTPException(
+            status_code=400, detail="Target package cannot be in source list"
+        )
+
+    sources = []
+    for sid in req.source_ids:
+        src = db.query(Package).filter(Package.id == sid).first()
+        if not src:
+            raise HTTPException(
+                status_code=404, detail=f"Source package {sid} not found"
+            )
+        sources.append(src)
+
+    # Find the next sort_order in the target package
+    max_order = (
+        db.query(Item.sort_order)
+        .filter(Item.package_id == package_id)
+        .order_by(Item.sort_order.desc())
+        .first()
+    )
+    offset = (max_order[0] + 1) if max_order else 0
+
+    for src in sorted(sources, key=lambda s: s.id):
+        # Move items to target with updated sort_order
+        src_items = (
+            db.query(Item)
+            .filter(Item.package_id == src.id)
+            .order_by(Item.sort_order)
+            .all()
+        )
+        for item in src_items:
+            item.package_id = package_id
+            item.sort_order = offset
+            offset += 1
+
+        # Redirect sessions to target
+        db.query(LearningSession).filter(
+            LearningSession.package_id == src.id
+        ).update({LearningSession.package_id: package_id})
+
+        # Delete the now-empty source package
+        db.delete(src)
+
+    db.commit()
+    db.refresh(target)
+
+    items = [ItemResponse.model_validate(item) for item in target.items]
+    return PackageDetailResponse(
+        **_package_to_response(target).model_dump(),
+        items=items,
+    )
 
 
 @router.get("/{package_id}/export")
