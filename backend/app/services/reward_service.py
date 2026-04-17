@@ -17,10 +17,17 @@ class RewardDelta:
     progress: int  # absolute new progress (0-99)
     streak: int  # same as new_streak
     game_tokens: int  # absolute new token count
+    tokens_suppressed: bool = False  # True if grade rule suppressed token progress
 
 
-def process_answer_reward(user: User, is_correct: bool) -> RewardDelta:
-    """Apply reward rules to user. Mutates user fields. Caller must db.commit()."""
+def process_answer_reward(
+    user: User, is_correct: bool, token_eligible: bool = True,
+) -> RewardDelta:
+    """Apply reward rules to user. Mutates user fields. Caller must db.commit().
+
+    When token_eligible is False (e.g. below-grade package), streak still
+    updates normally but no token progress is awarded.
+    """
     if not is_correct:
         user.reward_streak = 0
         return RewardDelta(
@@ -38,13 +45,16 @@ def process_answer_reward(user: User, is_correct: bool) -> RewardDelta:
     progress_gained = STREAK_BONUS_PROGRESS if is_streak_bonus else NORMAL_PROGRESS
 
     user.reward_streak += 1
-    user.reward_progress += progress_gained
 
     token_earned = False
-    if user.reward_progress >= PROGRESS_MAX:
-        user.game_tokens += 1
-        user.reward_progress = 0  # excess does NOT carry over
-        token_earned = True
+    if token_eligible:
+        user.reward_progress += progress_gained
+        if user.reward_progress >= PROGRESS_MAX:
+            user.game_tokens += 1
+            user.reward_progress = 0  # excess does NOT carry over
+            token_earned = True
+    else:
+        progress_gained = 0
 
     return RewardDelta(
         progress_gained=progress_gained,
@@ -54,4 +64,5 @@ def process_answer_reward(user: User, is_correct: bool) -> RewardDelta:
         progress=user.reward_progress,
         streak=user.reward_streak,
         game_tokens=user.game_tokens,
+        tokens_suppressed=not token_eligible,
     )

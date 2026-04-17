@@ -342,22 +342,26 @@ def build_lesson_item_sequence(
 
 
 def build_subject_lesson_sequence(
-    db: Session, child_id: int, subject: str, question_count: int
+    db: Session, child_id: int, subject: str, question_count: int,
+    grade: int | None = None,
 ) -> list[Item]:
-    """Select and order items for a lesson from all published packages of a subject."""
-    pkg_ids = [
-        p.id
-        for p in db.query(Package.id)
-        .filter(Package.subject == subject, Package.status == "published")
-        .all()
-    ]
+    """Select and order items for a lesson from published packages of a subject+grade."""
+    query = db.query(Package.id).filter(
+        Package.subject == subject, Package.status == "published",
+    )
+    if grade is not None:
+        query = query.filter(Package.grade == grade)
+    else:
+        query = query.filter(Package.grade.is_(None))
+    pkg_ids = [p.id for p in query.all()]
     if not pkg_ids:
         return []
     items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all()
     if not items:
         return []
+    label = f"subject={subject}" + (f",grade={grade}" if grade is not None else "")
     return _build_from_items(
-        db, child_id, items, question_count, log_label=f"subject={subject}"
+        db, child_id, items, question_count, log_label=label,
     )
 
 
@@ -402,18 +406,23 @@ def start_lesson(
 
 def start_subject_lesson(
     db: Session, child_id: int, subject: str, question_count: int,
+    grade: int | None = None,
     child_user: User | None = None,
 ) -> tuple[LearningSession, Item | None]:
-    """Start a new subject-review lesson across all published packages of a subject."""
-    pkg_count = (
-        db.query(Package)
-        .filter(Package.subject == subject, Package.status == "published")
-        .count()
+    """Start a new subject+grade review lesson across published packages."""
+    query = db.query(Package).filter(
+        Package.subject == subject, Package.status == "published",
     )
-    if pkg_count == 0:
+    if grade is not None:
+        query = query.filter(Package.grade == grade)
+    else:
+        query = query.filter(Package.grade.is_(None))
+    if query.count() == 0:
         raise ValueError("Pro tento předmět nejsou publikované balíčky")
 
-    selected = build_subject_lesson_sequence(db, child_id, subject, question_count)
+    selected = build_subject_lesson_sequence(
+        db, child_id, subject, question_count, grade=grade,
+    )
     if not selected:
         raise ValueError("Pro tento předmět nejsou dostupné otázky")
 
@@ -432,6 +441,7 @@ def start_subject_lesson(
         child_id=child_id,
         package_id=None,
         subject=subject,
+        grade=grade,
         total_questions=len(selected),
         correct_count=0,
         item_ids=json.dumps(item_ids),
@@ -496,10 +506,21 @@ def submit_answer(
     review = get_or_create_review(db, session.child_id, item_id)
     update_review(review, is_correct)
 
+    # Determine token eligibility (below-grade package suppresses tokens)
+    token_eligible = True
+    pkg = item.package
+    if (pkg and pkg.grade is not None
+            and child_user is not None
+            and child_user.grade is not None
+            and pkg.grade < child_user.grade):
+        token_eligible = False
+
     # Update reward state
     reward_delta = None
     if child_user is not None:
-        reward_delta = process_answer_reward(child_user, is_correct)
+        reward_delta = process_answer_reward(
+            child_user, is_correct, token_eligible=token_eligible,
+        )
 
     db.commit()
 
@@ -529,7 +550,8 @@ def extend_session(
         )
     else:
         selected = build_subject_lesson_sequence(
-            db, session.child_id, session.subject, EXTENSION_QUESTION_COUNT
+            db, session.child_id, session.subject, EXTENSION_QUESTION_COUNT,
+            grade=session.grade,
         )
 
     if not selected:

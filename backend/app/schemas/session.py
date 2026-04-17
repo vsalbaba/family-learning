@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 class LessonStartRequest(BaseModel):
     package_id: int | None = None
     subject: str | None = None
+    grade: int | None = None
     question_count: int = Field(default=5, ge=1, le=999)
 
     @model_validator(mode="after")
@@ -40,6 +41,7 @@ class RewardInfo(BaseModel):
     progress: int
     streak: int
     game_tokens: int
+    tokens_suppressed: bool = False
 
 
 class AnswerResponse(BaseModel):
