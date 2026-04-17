@@ -947,6 +947,13 @@ body {
   gap: 0.5rem;
 }
 
+.matching-arrows {
+  display: flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
 .matching-item {
   padding: 0.5rem 0.75rem;
   border: 2px solid var(--color-border);
@@ -974,6 +981,11 @@ body {
 .matching-pair {
   color: var(--color-success);
   font-weight: 600;
+}
+
+.matching-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .ordering-list {
