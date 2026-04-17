@@ -10,8 +10,10 @@ export function useGameWindow() {
   const prevActiveRef = useRef(false);
   const expireTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const expiresAt = user?.game_window_expires_at
-    ? new Date(user.game_window_expires_at).getTime()
+  // Backend stores naive UTC — ensure JS parses it as UTC, not local time
+  const raw = user?.game_window_expires_at;
+  const expiresAt = raw
+    ? new Date(raw.endsWith("Z") ? raw : raw + "Z").getTime()
     : null;
 
   useEffect(() => {
