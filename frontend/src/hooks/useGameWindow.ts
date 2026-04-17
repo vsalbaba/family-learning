@@ -1,9 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
+
+const EXPIRE_ANIMATION_MS = 2400;
 
 export function useGameWindow() {
   const { user } = useAuth();
   const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [justExpired, setJustExpired] = useState(false);
+  const prevActiveRef = useRef(false);
+  const expireTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const expiresAt = user?.game_window_expires_at
     ? new Date(user.game_window_expires_at).getTime()
@@ -24,5 +29,34 @@ export function useGameWindow() {
     return () => clearInterval(id);
   }, [expiresAt]);
 
-  return { isActive: remainingSeconds > 0, remainingSeconds };
+  const isActive = remainingSeconds > 0;
+
+  // Detect transition active -> inactive within this hook's lifecycle
+  useEffect(() => {
+    if (prevActiveRef.current && !isActive) {
+      // Clear any pending timeout from a previous transition
+      if (expireTimeoutRef.current) clearTimeout(expireTimeoutRef.current);
+      setJustExpired(true);
+      expireTimeoutRef.current = setTimeout(() => {
+        setJustExpired(false);
+        expireTimeoutRef.current = null;
+      }, EXPIRE_ANIMATION_MS);
+    }
+    if (isActive && justExpired) {
+      // New window activated during animation — cancel it
+      if (expireTimeoutRef.current) clearTimeout(expireTimeoutRef.current);
+      expireTimeoutRef.current = null;
+      setJustExpired(false);
+    }
+    prevActiveRef.current = isActive;
+  }, [isActive]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (expireTimeoutRef.current) clearTimeout(expireTimeoutRef.current);
+    };
+  }, []);
+
+  return { isActive, remainingSeconds, justExpired };
 }

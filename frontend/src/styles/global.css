@@ -1446,6 +1446,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.window-timer--expired {
+  animation: timer-blink 0.4s steps(1) 6;
+}
+
+@keyframes timer-blink {
+  50% { opacity: 0; }
+}
+
 .reward-feedback {
   margin: 0.75rem 0;
   display: flex;

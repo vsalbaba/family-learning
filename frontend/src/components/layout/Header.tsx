@@ -4,7 +4,7 @@ import TokenIcon from "../common/TokenIcon";
 
 export default function Header() {
   const { user, logout } = useAuth();
-  const { isActive, remainingSeconds } = useGameWindow();
+  const { isActive, remainingSeconds, justExpired } = useGameWindow();
   if (!user) return null;
 
   return (
@@ -28,10 +28,11 @@ export default function Header() {
               <TokenIcon size={18} />
               <span>{user.game_tokens}</span>
             </span>
-            {isActive && (
-              <span className="window-timer">
-                {Math.floor(remainingSeconds / 60)}:
-                {String(remainingSeconds % 60).padStart(2, "0")}
+            {(isActive || justExpired) && (
+              <span className={`window-timer${justExpired ? " window-timer--expired" : ""}`}>
+                {justExpired
+                  ? "0:00"
+                  : `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, "0")}`}
               </span>
             )}
           </div>
