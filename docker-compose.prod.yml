@@ -1,0 +1,33 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - app-data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///data/family_learning.db
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - PARENT_PIN=${PARENT_PIN:-1234}
+    networks:
+      - app-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        COMMIT_HASH: "${COMMIT_HASH:-dev}"
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+    networks:
+      - app-net
+    restart: unless-stopped
+
+volumes:
+  app-data:
+
+networks:
+  app-net:
