@@ -3,6 +3,8 @@ WORKDIR /app
 COPY package*.json .
 RUN npm ci
 COPY . .
+ARG COMMIT_HASH=dev
+ENV VITE_COMMIT_HASH=$COMMIT_HASH
 RUN npm run build
 
 FROM nginx:alpine

@@ -73,6 +73,14 @@ body {
   margin: 0 auto;
 }
 
+.app-footer {
+  text-align: center;
+  padding: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0.4;
+}
+
 .app-loading {
   display: flex;
   align-items: center;

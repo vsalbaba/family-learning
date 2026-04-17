@@ -14,7 +14,10 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        COMMIT_HASH: "${COMMIT_HASH:-dev}"
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:

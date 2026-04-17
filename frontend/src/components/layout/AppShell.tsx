@@ -8,6 +8,7 @@ export default function AppShell() {
       <main className="app-main">
         <Outlet />
       </main>
+      <footer className="app-footer">{__COMMIT_HASH__}</footer>
     </div>
   );
 }
