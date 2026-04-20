@@ -1,6 +1,8 @@
 import type { ArenaGameState } from "./game-state";
 import type { ArenaViewState } from "./types";
 import { render } from "./renderer";
+import { updateEnemySpawner } from "./systems/enemy-spawner";
+import { updateMovement } from "./systems/movement";
 
 export interface ArenaGameLoop {
   start(): void;
@@ -31,13 +33,21 @@ export function createArenaGameLoop(
       // 1. Timer countdown
       updateTimer(state, dt);
 
-      // 2-6. Systems will be added in M3/M4
-      // updateEnemySpawner(state, dt);
-      // updateMovement(state, dt);
+      // 2. Spawn enemies
+      updateEnemySpawner(state, dt);
+
+      // 3. Move all units
+      updateMovement(state, dt);
+
+      // 4. Combat (M4)
       // updateCombat(state, dt);
-      // tickDyingTimers(state, dt);
-      // cleanupDead(state);
-      // checkWinLoss(state);
+
+      // 5. Dying timers & cleanup
+      tickDyingTimers(state, dt);
+      cleanupDead(state);
+
+      // 6. Win/loss check
+      checkWinLoss(state);
     }
 
     // 7. Render
@@ -82,6 +92,55 @@ function updateTimer(state: ArenaGameState, dt: number): void {
   if (state.remainingMs <= 0) {
     state.remainingMs = 0;
     state.phase = "won";
+  }
+}
+
+// ── Dying timers ────────────────────────────────────────────────────
+
+function tickDyingTimers(state: ArenaGameState, dt: number): void {
+  for (const unit of state.playerUnits.values()) {
+    if (unit.state === "dying") {
+      unit.animTimer -= dt;
+    }
+  }
+  for (const enemy of state.enemies.values()) {
+    if (enemy.state === "dying") {
+      enemy.animTimer -= dt;
+    }
+  }
+  // Tick spell effects
+  state.spellEffects = state.spellEffects.filter((e) => {
+    e.timer -= dt;
+    return e.timer > 0;
+  });
+}
+
+// ── Cleanup dead ────────────────────────────────────────────────────
+
+function cleanupDead(state: ArenaGameState): void {
+  for (const unit of state.playerUnits.values()) {
+    if (unit.state === "dying" && unit.animTimer <= 0) {
+      state.removePlayerUnit(unit.id);
+    }
+  }
+  for (const enemy of state.enemies.values()) {
+    if (enemy.state === "dying" && enemy.animTimer <= 0) {
+      state.removeEnemy(enemy.id);
+    }
+  }
+}
+
+// ── Win/loss check ──────────────────────────────────────────────────
+
+function checkWinLoss(state: ArenaGameState): void {
+  // Loss: any non-dying enemy reaches the player castle
+  const castleRight = state.config.castleWidthPx;
+  for (const enemy of state.enemies.values()) {
+    if (enemy.state === "dying") continue;
+    if (enemy.x <= castleRight) {
+      state.phase = "lost";
+      return;
+    }
   }
 }
 
