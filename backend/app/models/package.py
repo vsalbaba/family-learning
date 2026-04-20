@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Index, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -8,6 +8,9 @@ from app.database import Base
 
 class Package(Base):
     __tablename__ = "package"
+    __table_args__ = (
+        Index("ix_package_subject_grade_status", "subject", "grade", "status"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String, nullable=False)

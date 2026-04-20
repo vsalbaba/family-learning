@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { GAME } from "../constants";
 
-const EXPIRE_ANIMATION_MS = 2400;
+const EXPIRE_ANIMATION_MS = GAME.EXPIRE_ANIMATION_MS;
 
 export function useGameWindow() {
   const { user } = useAuth();

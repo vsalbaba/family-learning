@@ -40,6 +40,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // Logout on 401 from any API call (dispatched by client.ts)
+  useEffect(() => {
+    function handleUnauthorized() {
+      logout();
+    }
+    window.addEventListener("auth:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("auth:unauthorized", handleUnauthorized);
+  }, []);
+
   function setUser(u: User | null, token?: string) {
     if (token) localStorage.setItem("token", token);
     setUserState(u);

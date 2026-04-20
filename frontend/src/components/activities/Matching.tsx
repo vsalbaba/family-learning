@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 interface Props {
+  /** JSON string: `{ lefts: string[], rights: string[] }`. Left items and shuffled right items to match. */
   answerData: string;
+  /** Called with `{ pairs: [number, number][] }` — child's left→right index mapping. */
   onSubmit: (answer: unknown) => void;
 }
 
@@ -40,6 +42,8 @@ export default function Matching({ answerData, onSubmit }: Props) {
             <button
               key={left}
               className={`matching-item ${selectedLeft === left ? "matching-item--selected" : ""} ${pairs[left] !== undefined ? "matching-item--paired" : ""}`}
+              aria-pressed={selectedLeft === left}
+              aria-label={pairs[left] !== undefined ? `${left} → ${rights[pairs[left]]}` : left}
               onClick={() => {
                 if (pairs[left] !== undefined) {
                   // Unpair: free the right-side answer

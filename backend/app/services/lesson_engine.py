@@ -1,3 +1,5 @@
+"""Lesson item selection and answer evaluation engine."""
+
 import json
 import logging
 import random
@@ -16,22 +18,58 @@ from app.services.spaced_repetition import get_or_create_review, update_review
 
 logger = logging.getLogger(__name__)
 
-# ── Tuning constants (iteration 1 defaults) ────────────────────
-REVIEW_MAX_RATIO = 0.4
-NEW_TARGET_RATIO = 0.4
-ANTI_REPEAT_HARD_HOURS = 6
-ANTI_REPEAT_SOFT_HOURS = 24
-ANTI_REPEAT_HARD_PENALTY = 1000
-ANTI_REPEAT_SOFT_PENALTY = 200
-LEARNING_EASE_WEIGHT = 100
-LEARNING_OVERDUE_BONUS = 50
-DUE_OVERDUE_HOURS_WEIGHT = 2
-DUE_OVERDUE_MAX_SCORE = 200
-DUE_EASE_WEIGHT = 40
-NOT_DUE_EASE_WEIGHT = 20
+@dataclass(frozen=True)
+class LessonConfig:
+    """Tuning parameters for lesson item selection.
 
-EXTENSION_QUESTION_COUNT = 10
-MAX_EXTENSIONS = 2
+    These control the balance between review, new, and filler items
+    in each lesson, as well as anti-repeat penalties and extension limits.
+    """
+
+    review_max_ratio: float = 0.4
+    """Maximum fraction of lesson slots for review (learning + due) items."""
+
+    new_target_ratio: float = 0.4
+    """Target fraction of lesson slots for unseen items."""
+
+    anti_repeat_hard_hours: int = 6
+    """Hours after answering during which an item is strongly suppressed."""
+
+    anti_repeat_soft_hours: int = 24
+    """Hours after answering during which an item is mildly suppressed."""
+
+    anti_repeat_hard_penalty: int = 1000
+    """Score penalty applied within the hard-repeat window."""
+
+    anti_repeat_soft_penalty: int = 200
+    """Score penalty applied within the soft-repeat window."""
+
+    learning_ease_weight: int = 100
+    """Weight of ease factor in scoring items still in the learning phase."""
+
+    learning_overdue_bonus: int = 50
+    """Bonus score for learning items that are past their review date."""
+
+    due_overdue_hours_weight: int = 2
+    """Per-hour score weight for overdue review items."""
+
+    due_overdue_max_score: int = 200
+    """Cap on the overdue score contribution for due items."""
+
+    due_ease_weight: int = 40
+    """Weight of ease factor in scoring due review items."""
+
+    not_due_ease_weight: int = 20
+    """Weight of ease factor in scoring items not yet due for review."""
+
+    extension_question_count: int = 10
+    """Number of questions added when a lesson is extended."""
+
+    max_extensions: int = 2
+    """Maximum number of times a lesson can be extended."""
+
+
+LESSON_CONFIG = LessonConfig()
 
 # Explicit budget table for known lesson sizes: (review_max, new_target, filler)
 _BUDGET_TABLE: dict[int, tuple[int, int, int]] = {
@@ -179,8 +217,8 @@ def _get_budget(count: int) -> tuple[int, int, int]:
     """Return (review_max, new_target, filler_target) for a lesson of given size."""
     if count in _BUDGET_TABLE:
         return _BUDGET_TABLE[count]
-    review_max = round(count * REVIEW_MAX_RATIO)
-    new_target = round(count * NEW_TARGET_RATIO)
+    review_max = round(count * LESSON_CONFIG.review_max_ratio)
+    new_target = round(count * LESSON_CONFIG.new_target_ratio)
     filler_target = count - review_max - new_target
     return (review_max, new_target, filler_target)
 
@@ -196,28 +234,28 @@ def _classify_and_score(
     recency_penalty = 0.0
     if not all_mode and rs.last_reviewed_at:
         hours_since = (now - rs.last_reviewed_at).total_seconds() / 3600
-        if hours_since < ANTI_REPEAT_HARD_HOURS:
-            recency_penalty = -ANTI_REPEAT_HARD_PENALTY
-        elif hours_since < ANTI_REPEAT_SOFT_HOURS:
-            recency_penalty = -ANTI_REPEAT_SOFT_PENALTY
+        if hours_since < LESSON_CONFIG.anti_repeat_hard_hours:
+            recency_penalty = -LESSON_CONFIG.anti_repeat_hard_penalty
+        elif hours_since < LESSON_CONFIG.anti_repeat_soft_hours:
+            recency_penalty = -LESSON_CONFIG.anti_repeat_soft_penalty
 
     if rs.status == "learning":
-        score = (2.5 - rs.ease_factor) * LEARNING_EASE_WEIGHT
+        score = (2.5 - rs.ease_factor) * LESSON_CONFIG.learning_ease_weight
         if rs.next_review_at <= now:
-            score += LEARNING_OVERDUE_BONUS
+            score += LESSON_CONFIG.learning_overdue_bonus
         score += random.uniform(0, 20) + recency_penalty
         return ("learning", score)
 
     if rs.next_review_at <= now:
         overdue_hours = (now - rs.next_review_at).total_seconds() / 3600
-        score = min(DUE_OVERDUE_MAX_SCORE, overdue_hours * DUE_OVERDUE_HOURS_WEIGHT)
-        score += (2.5 - rs.ease_factor) * DUE_EASE_WEIGHT
+        score = min(LESSON_CONFIG.due_overdue_max_score, overdue_hours * LESSON_CONFIG.due_overdue_hours_weight)
+        score += (2.5 - rs.ease_factor) * LESSON_CONFIG.due_ease_weight
         score += random.uniform(0, 20) + recency_penalty
         return ("due", score)
 
     days_until = (rs.next_review_at - now).total_seconds() / 86400
     score = -days_until
-    score += (2.5 - rs.ease_factor) * NOT_DUE_EASE_WEIGHT
+    score += (2.5 - rs.ease_factor) * LESSON_CONFIG.not_due_ease_weight
     score += random.uniform(0, 10) + recency_penalty
     return ("not_due", score)
 
@@ -332,7 +370,21 @@ def _build_from_items(
 def build_lesson_item_sequence(
     db: Session, child_id: int, package_id: int, question_count: int
 ) -> list[Item]:
-    """Select and order items for a lesson from a single package."""
+    """Select and order items for a lesson from a single package.
+
+    Uses budget-based allocation to balance review, new, and filler
+    items. Items are scored by spaced repetition state and anti-repeat
+    penalties.
+
+    Args:
+        db: Database session.
+        child_id: ID of the child.
+        package_id: ID of the package to select items from.
+        question_count: Desired lesson size. Use 999 to return all items.
+
+    Returns:
+        Ordered list of Items for the lesson.
+    """
     items = db.query(Item).filter(Item.package_id == package_id).all()
     if not items:
         return []
@@ -369,7 +421,25 @@ def start_lesson(
     db: Session, child_id: int, package_id: int, question_count: int,
     child_user: User | None = None,
 ) -> tuple[LearningSession, Item | None]:
-    """Start a new lesson session. Returns (session, first_question_item)."""
+    """Start a new lesson session.
+
+    Closes any active sessions for the child, selects items via
+    budget-based allocation, and resets the reward streak.
+
+    Args:
+        db: Database session.
+        child_id: ID of the child starting the lesson.
+        package_id: ID of the published package to draw items from.
+        question_count: Desired number of questions.
+        child_user: Optional User object; when provided, streak is reset.
+
+    Returns:
+        Tuple of (LearningSession, first Item) or (LearningSession, None)
+        if the package has no items.
+
+    Raises:
+        ValueError: If the package is not found, not published, or empty.
+    """
     package = db.query(Package).filter(Package.id == package_id).first()
     if not package or package.status != "published":
         raise ValueError("Balíček nenalezen nebo není publikován")
@@ -461,7 +531,27 @@ def submit_answer(
     response_time_ms: int | None,
     child_user: User | None = None,
 ) -> tuple[Feedback, RewardDelta | None]:
-    """Submit an answer for a question in an active session."""
+    """Submit an answer for a question in an active session.
+
+    Checks correctness, records the answer, updates spaced repetition
+    state, and processes reward progression. Auto-finishes the session
+    when all questions have been answered.
+
+    Args:
+        db: Database session.
+        session: The active LearningSession.
+        item_id: ID of the item being answered.
+        given_answer: JSON string of the child's answer.
+        response_time_ms: Time taken to answer in milliseconds.
+        child_user: Optional User object for reward tracking.
+
+    Returns:
+        Tuple of (Feedback, RewardDelta or None).
+
+    Raises:
+        ValueError: If the session is finished, item not found, or
+            already answered the maximum allowed times.
+    """
     if session.finished_at is not None:
         raise ValueError("Lekce je již ukončena")
 
@@ -537,20 +627,36 @@ def submit_answer(
 def extend_session(
     db: Session, session: LearningSession,
 ) -> Item | None:
-    """Extend a finished session with fresh questions. Streak preserved."""
+    """Extend a finished session with fresh questions.
+
+    Selects a new batch of items, appends them to the session, and
+    re-opens it. The child's reward streak is preserved across
+    extensions.
+
+    Args:
+        db: Database session.
+        session: The finished LearningSession to extend.
+
+    Returns:
+        The first Item of the new batch, or None if no items available.
+
+    Raises:
+        ValueError: If the session is not yet finished or the maximum
+            number of extensions has been reached.
+    """
     if session.finished_at is None:
         raise ValueError("Lekce ještě není dokončena")
-    if session.extension_count >= MAX_EXTENSIONS:
+    if session.extension_count >= LESSON_CONFIG.max_extensions:
         raise ValueError("Maximální počet rozšíření dosažen")
 
     # Fresh item selection (same as starting a new lesson — no exclusions)
     if session.package_id:
         selected = build_lesson_item_sequence(
-            db, session.child_id, session.package_id, EXTENSION_QUESTION_COUNT
+            db, session.child_id, session.package_id, LESSON_CONFIG.extension_question_count
         )
     else:
         selected = build_subject_lesson_sequence(
-            db, session.child_id, session.subject, EXTENSION_QUESTION_COUNT,
+            db, session.child_id, session.subject, LESSON_CONFIG.extension_question_count,
             grade=session.grade,
         )
 

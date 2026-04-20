@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Integer, Float, String, DateTime, ForeignKey, UniqueConstraint, func
+from sqlalchemy import Index, Integer, Float, String, DateTime, ForeignKey, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -10,6 +10,8 @@ class ReviewState(Base):
     __tablename__ = "review_state"
     __table_args__ = (
         UniqueConstraint("child_id", "item_id", name="uq_child_item"),
+        Index("ix_review_child_next", "child_id", "next_review_at"),
+        Index("ix_review_child_status", "child_id", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

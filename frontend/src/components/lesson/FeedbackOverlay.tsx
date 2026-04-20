@@ -75,7 +75,7 @@ export default function FeedbackOverlay({
   const givenDisplay = formatAnswer(givenAnswer, activityType, true);
 
   return (
-    <div className={`feedback-overlay feedback--${isCorrect ? "correct" : "wrong"}`}>
+    <div className={`feedback-overlay feedback--${isCorrect ? "correct" : "wrong"}`} aria-live="polite">
       <div className="feedback-icon">{isCorrect ? "✓" : "✗"}</div>
       <h3>{isCorrect ? "Správně!" : "Špatně"}</h3>
       {!isCorrect && givenDisplay && (

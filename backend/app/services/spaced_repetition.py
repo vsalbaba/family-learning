@@ -1,3 +1,5 @@
+"""Simplified SM-2 spaced repetition algorithm."""
+
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session

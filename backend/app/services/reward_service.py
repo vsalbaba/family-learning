@@ -1,3 +1,5 @@
+"""Streak-based reward and token progression."""
+
 from dataclasses import dataclass
 
 from app.models.user import User

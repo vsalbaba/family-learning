@@ -1,4 +1,7 @@
+"""Package management: import, CRUD, merge, export, and validation."""
+
 import json
+import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -26,6 +29,8 @@ from app.schemas.session import AnswerRequest
 from app.services.lesson_engine import check_answer, get_child_answer_data, get_correct_answer_display
 from app.services.package_validator import validate_package
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -38,6 +43,7 @@ def _normalize_subject(s: str | None) -> tuple[str | None, str | None]:
 
 
 def _package_to_response(pkg: Package) -> PackageResponse:
+    """Convert a Package ORM object to its API response model."""
     return PackageResponse(
         id=pkg.id,
         name=pkg.name,
@@ -60,6 +66,7 @@ def _package_to_response(pkg: Package) -> PackageResponse:
 
 
 def _validation_to_schema(result) -> ValidationResultSchema:
+    """Convert an internal ValidationResult to the API schema."""
     return ValidationResultSchema(
         is_valid=result.is_valid,
         hard_errors=[
@@ -80,6 +87,7 @@ def _validation_to_schema(result) -> ValidationResultSchema:
 def _import_package(
     raw_json: str, user: User, db: Session
 ) -> PackageImportResponse:
+    """Validate and import a package from raw JSON."""
     result = validate_package(raw_json)
     validation = _validation_to_schema(result)
 
@@ -129,37 +137,15 @@ def _import_package(
     db.commit()
     db.refresh(pkg)
 
+    logger.info("Package imported: id=%d name=%s items=%d", pkg.id, pkg.name, len(data["items"]))
+
     return PackageImportResponse(
         package=_package_to_response(pkg),
         validation=validation,
     )
 
 
-def _extract_answer_data(activity_type: str, item_data: dict) -> dict:
-    """Extract the answer-related fields for storage in answer_data JSON."""
-    if activity_type == "flashcard":
-        return {"answer": item_data["answer"]}
-    if activity_type == "multiple_choice":
-        return {"options": item_data["options"], "correct": item_data["correct"]}
-    if activity_type == "true_false":
-        return {"correct": item_data["correct"]}
-    if activity_type == "fill_in":
-        result = {"accepted_answers": item_data["accepted_answers"]}
-        if "case_sensitive" in item_data:
-            result["case_sensitive"] = item_data["case_sensitive"]
-        return result
-    if activity_type == "matching":
-        return {"pairs": item_data["pairs"]}
-    if activity_type == "ordering":
-        return {"correct_order": item_data["correct_order"]}
-    if activity_type == "math_input":
-        result = {"correct_value": item_data["correct_value"]}
-        if "tolerance" in item_data:
-            result["tolerance"] = item_data["tolerance"]
-        if "unit" in item_data:
-            result["unit"] = item_data["unit"]
-        return result
-    return {}
+from app.services.item_parser import extract_answer_data as _extract_answer_data
 
 
 @router.post("/import", response_model=PackageImportResponse)
@@ -168,6 +154,7 @@ def import_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Import a package from a JSON string."""
     return _import_package(req.content, user, db)
 
 
@@ -177,6 +164,7 @@ async def import_package_file(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Import a package from an uploaded JSON file."""
     content = await file.read()
     raw_json = content.decode("utf-8")
     return _import_package(raw_json, user, db)
@@ -187,6 +175,7 @@ def list_packages(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """List all packages, filtered by role."""
     query = db.query(Package)
     if user.role == "child":
         query = query.filter(Package.status == "published")
@@ -212,11 +201,12 @@ def get_package(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    """Retrieve a single package with its items."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if user.role == "child" and pkg.status != "published":
-        raise HTTPException(status_code=403, detail="Package not available")
+        raise HTTPException(status_code=403, detail="Balíček není dostupný")
 
     items = [ItemResponse.model_validate(item) for item in pkg.items]
     resp = PackageDetailResponse(
@@ -233,9 +223,10 @@ def update_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Update package metadata fields."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if req.name is not None:
         pkg.name = req.name
     if req.subject is not None:
@@ -264,13 +255,15 @@ def publish_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Publish a draft package to make it available to children."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     pkg.status = "published"
     pkg.published_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(pkg)
+    logger.info("Package published: id=%d", package_id)
     return _package_to_response(pkg)
 
 
@@ -280,9 +273,10 @@ def unpublish_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Revert a published package back to draft status."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     pkg.status = "draft"
     pkg.published_at = None
     db.commit()
@@ -296,9 +290,10 @@ def archive_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Archive a package to hide it from children."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     pkg.status = "archived"
     db.commit()
     db.refresh(pkg)
@@ -311,16 +306,18 @@ def delete_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Delete a non-published package."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if pkg.status == "published":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot delete a published package. Archive it first.",
+            detail="Nelze smazat publikovaný balíček. Nejprve jej archivujte.",
         )
     db.delete(pkg)
     db.commit()
+    logger.info("Package deleted: id=%d", package_id)
 
 
 @router.post("/{package_id}/merge", response_model=PackageDetailResponse)
@@ -330,13 +327,14 @@ def merge_packages(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Merge source packages into the target package."""
     target = db.query(Package).filter(Package.id == package_id).first()
     if not target:
-        raise HTTPException(status_code=404, detail="Target package not found")
+        raise HTTPException(status_code=404, detail="Cílový balíček nenalezen")
 
     if package_id in req.source_ids:
         raise HTTPException(
-            status_code=400, detail="Target package cannot be in source list"
+            status_code=400, detail="Cílový balíček nemůže být v seznamu zdrojových"
         )
 
     sources = []
@@ -344,7 +342,7 @@ def merge_packages(
         src = db.query(Package).filter(Package.id == sid).first()
         if not src:
             raise HTTPException(
-                status_code=404, detail=f"Source package {sid} not found"
+                status_code=404, detail=f"Zdrojový balíček {sid} nenalezen"
             )
         sources.append(src)
 
@@ -357,28 +355,37 @@ def merge_packages(
     )
     offset = (max_order[0] + 1) if max_order else 0
 
-    for src in sorted(sources, key=lambda s: s.id):
-        # Move items to target with updated sort_order
-        src_items = (
-            db.query(Item)
-            .filter(Item.package_id == src.id)
-            .order_by(Item.sort_order)
-            .all()
+    try:
+        for src in sorted(sources, key=lambda s: s.id):
+            # Move items to target with updated sort_order
+            src_items = (
+                db.query(Item)
+                .filter(Item.package_id == src.id)
+                .order_by(Item.sort_order)
+                .all()
+            )
+            for item in src_items:
+                item.package_id = package_id
+                item.sort_order = offset
+                offset += 1
+
+            # Redirect sessions to target
+            db.query(LearningSession).filter(
+                LearningSession.package_id == src.id
+            ).update({LearningSession.package_id: package_id})
+
+            # Delete the now-empty source package
+            db.delete(src)
+
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Sloučení balíčků selhalo, změny byly vráceny zpět.",
         )
-        for item in src_items:
-            item.package_id = package_id
-            item.sort_order = offset
-            offset += 1
 
-        # Redirect sessions to target
-        db.query(LearningSession).filter(
-            LearningSession.package_id == src.id
-        ).update({LearningSession.package_id: package_id})
-
-        # Delete the now-empty source package
-        db.delete(src)
-
-    db.commit()
+    logger.info("Packages merged: target=%d sources=%s", package_id, req.source_ids)
     db.refresh(target)
 
     items = [ItemResponse.model_validate(item) for item in target.items]
@@ -394,9 +401,10 @@ def export_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Export a package as reconstructed JSON."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     # Always reconstruct from current DB state (raw_json may be stale)
     items_out = []
     for item in pkg.items:
@@ -436,9 +444,10 @@ def revalidate_package(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Re-validate a package from its current DB state."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     # Reconstruct JSON from DB items and re-validate
     export_data = export_package(package_id, user, db)
     raw = json.dumps(export_data)
@@ -460,13 +469,14 @@ def update_item(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Update an existing item within a package."""
     item = (
         db.query(Item)
         .filter(Item.id == item_id, Item.package_id == package_id)
         .first()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Otázka nenalezena")
     if req.question is not None:
         item.question = req.question
     if req.answer_data is not None:
@@ -489,11 +499,12 @@ def create_item(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Add a new item to a package."""
     pkg = db.query(Package).filter(Package.id == package_id).first()
     if not pkg:
-        raise HTTPException(status_code=404, detail="Package not found")
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if req.activity_type not in VALID_ACTIVITY_TYPES:
-        raise HTTPException(status_code=422, detail=f"Unknown activity type: {req.activity_type}")
+        raise HTTPException(status_code=422, detail=f"Neznámý typ aktivity: {req.activity_type}")
     max_order = (
         db.query(Item.sort_order)
         .filter(Item.package_id == package_id)
@@ -524,13 +535,14 @@ def delete_item(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Delete an item and its associated answers."""
     item = (
         db.query(Item)
         .filter(Item.id == item_id, Item.package_id == package_id)
         .first()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Otázka nenalezena")
     # Delete any answers referencing this item first
     db.query(Answer).filter(Answer.item_id == item_id).delete()
     db.delete(item)
@@ -552,7 +564,7 @@ def check_item_answer(
         .first()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Otázka nenalezena")
     is_correct = check_answer(item, req.given_answer)
     correct_answer = get_correct_answer_display(item)
     return {
@@ -577,7 +589,7 @@ def get_item_child_view(
         .first()
     )
     if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
+        raise HTTPException(status_code=404, detail="Otázka nenalezena")
     return {
         "item_id": item.id,
         "activity_type": item.activity_type,

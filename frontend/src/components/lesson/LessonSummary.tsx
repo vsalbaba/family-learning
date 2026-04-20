@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import type { LessonSummary as SummaryType } from "../../types/lesson";
+import { SCORE } from "../../constants";
 
 interface Props {
   summary: SummaryType;
@@ -32,9 +33,9 @@ function formatCorrectAnswer(json: string, activityType: string): string {
 export default function LessonSummaryView({ summary, onExtend }: Props) {
   const navigate = useNavigate();
   const emoji =
-    summary.score_percent >= 80
+    summary.score_percent >= SCORE.GREAT_THRESHOLD
       ? "🎉"
-      : summary.score_percent >= 50
+      : summary.score_percent >= SCORE.GOOD_THRESHOLD
         ? "👍"
         : "💪";
 

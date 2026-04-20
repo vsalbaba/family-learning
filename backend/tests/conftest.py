@@ -110,7 +110,7 @@ def published_package(db_session: Session, parent_user: User) -> Package:
 
     for i, item_data in enumerate(data["items"]):
         activity_type = item_data["type"]
-        answer_fields = _extract_answer(activity_type, item_data)
+        answer_fields = extract_answer_data(activity_type, item_data)
         item = Item(
             package_id=pkg.id,
             sort_order=i,
@@ -128,27 +128,4 @@ def published_package(db_session: Session, parent_user: User) -> Package:
     return pkg
 
 
-def _extract_answer(activity_type: str, item_data: dict) -> dict:
-    if activity_type == "flashcard":
-        return {"answer": item_data["answer"]}
-    if activity_type == "multiple_choice":
-        return {"options": item_data["options"], "correct": item_data["correct"]}
-    if activity_type == "true_false":
-        return {"correct": item_data["correct"]}
-    if activity_type == "fill_in":
-        result = {"accepted_answers": item_data["accepted_answers"]}
-        if "case_sensitive" in item_data:
-            result["case_sensitive"] = item_data["case_sensitive"]
-        return result
-    if activity_type == "matching":
-        return {"pairs": item_data["pairs"]}
-    if activity_type == "ordering":
-        return {"correct_order": item_data["correct_order"]}
-    if activity_type == "math_input":
-        result = {"correct_value": item_data["correct_value"]}
-        if "tolerance" in item_data:
-            result["tolerance"] = item_data["tolerance"]
-        if "unit" in item_data:
-            result["unit"] = item_data["unit"]
-        return result
-    return {}
+from app.services.item_parser import extract_answer_data

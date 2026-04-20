@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useReducer } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   getPackage,
@@ -17,6 +17,43 @@ import {
 import type { ActivityType, PackageDetail, PackageItem, PackageSummary } from "../types/package";
 import ItemEditor from "../components/packages/ItemEditor";
 
+type PageMode =
+  | { type: "viewing" }
+  | { type: "editingItem"; itemId: number }
+  | { type: "addingItem"; activityType: ActivityType }
+  | { type: "editingMeta" }
+  | { type: "merging"; selectedIds: Set<number> };
+
+type ModeAction =
+  | { type: "VIEW" }
+  | { type: "EDIT_ITEM"; itemId: number }
+  | { type: "ADD_ITEM"; activityType: ActivityType }
+  | { type: "EDIT_META" }
+  | { type: "START_MERGE" }
+  | { type: "TOGGLE_SOURCE"; id: number };
+
+function modeReducer(state: PageMode, action: ModeAction): PageMode {
+  switch (action.type) {
+    case "VIEW":
+      return { type: "viewing" };
+    case "EDIT_ITEM":
+      return { type: "editingItem", itemId: action.itemId };
+    case "ADD_ITEM":
+      return { type: "addingItem", activityType: action.activityType };
+    case "EDIT_META":
+      return { type: "editingMeta" };
+    case "START_MERGE":
+      return { type: "merging", selectedIds: new Set() };
+    case "TOGGLE_SOURCE": {
+      if (state.type !== "merging") return state;
+      const next = new Set(state.selectedIds);
+      if (next.has(action.id)) next.delete(action.id);
+      else next.add(action.id);
+      return { type: "merging", selectedIds: next };
+    }
+  }
+}
+
 const ACTIVITY_LABELS: Record<string, string> = {
   flashcard: "Kartička",
   multiple_choice: "Výběr z možností",
@@ -32,13 +69,9 @@ export default function PackageDetailPage() {
   const navigate = useNavigate();
   const [pkg, setPkg] = useState<PackageDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editingItemId, setEditingItemId] = useState<number | null>(null);
-  const [addingType, setAddingType] = useState<ActivityType | null>(null);
-  const [editingMeta, setEditingMeta] = useState(false);
+  const [mode, dispatch] = useReducer(modeReducer, { type: "viewing" } as PageMode);
   const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "", grade: "", topic: "" });
-  const [merging, setMerging] = useState(false);
   const [otherPackages, setOtherPackages] = useState<PackageSummary[]>([]);
-  const [selectedSources, setSelectedSources] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (id) {
@@ -80,7 +113,7 @@ export default function PackageDetailPage() {
       grade: pkg.grade != null ? String(pkg.grade) : "",
       topic: pkg.topic ?? "",
     });
-    setEditingMeta(true);
+    dispatch({ type: "EDIT_META" });
   }
 
   async function handleSaveMeta(e: React.FormEvent) {
@@ -105,7 +138,7 @@ export default function PackageDetailPage() {
       grade: metaForm.grade ? parseInt(metaForm.grade) : null,
       topic: metaForm.topic || null,
     });
-    setEditingMeta(false);
+    dispatch({ type: "VIEW" });
   }
 
   async function handleSaveItem(itemId: number, data: Record<string, unknown>) {
@@ -115,35 +148,25 @@ export default function PackageDetailPage() {
       ...pkg,
       items: pkg.items.map((it) => (it.id === itemId ? updated : it)),
     });
-    setEditingItemId(null);
+    dispatch({ type: "VIEW" });
   }
 
   async function handleCreateItem(data: Record<string, unknown>) {
     if (!pkg) return;
     const created = await createItem(pkg.id, data);
     setPkg({ ...pkg, items: [...pkg.items, created], item_count: pkg.item_count + 1 });
-    setAddingType(null);
+    dispatch({ type: "VIEW" });
   }
 
   async function startMerge() {
     const all = await listPackages();
     setOtherPackages(all.filter((p) => p.id !== pkg?.id));
-    setSelectedSources(new Set());
-    setMerging(true);
-  }
-
-  function toggleSource(id: number) {
-    setSelectedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    dispatch({ type: "START_MERGE" });
   }
 
   async function handleMerge() {
-    if (!pkg || selectedSources.size === 0) return;
-    const sourceIds = Array.from(selectedSources);
+    if (!pkg || mode.type !== "merging" || mode.selectedIds.size === 0) return;
+    const sourceIds = Array.from(mode.selectedIds);
     const names = otherPackages
       .filter((p) => sourceIds.includes(p.id))
       .map((p) => p.name);
@@ -158,7 +181,7 @@ export default function PackageDetailPage() {
       return;
     const updated = await mergePackages(pkg.id, sourceIds);
     setPkg(updated);
-    setMerging(false);
+    dispatch({ type: "VIEW" });
   }
 
   async function handleDeleteItem(item: PackageItem) {
@@ -171,8 +194,8 @@ export default function PackageDetailPage() {
         items: pkg.items.filter((it) => it.id !== item.id),
         item_count: pkg.item_count - 1,
       });
-    } catch (e: any) {
-      alert(`Chyba při mazání: ${e.message}`);
+    } catch (error) {
+      alert(`Chyba při mazání: ${error instanceof Error ? error.message : "Neznámá chyba"}`);
     }
   }
 
@@ -206,12 +229,12 @@ export default function PackageDetailPage() {
               Vyzkoušet balíček
             </button>
           )}
-          {!editingMeta && (
+          {mode.type !== "editingMeta" && (
             <button className="btn btn-small btn-secondary" onClick={startEditMeta}>
               Upravit metadata
             </button>
           )}
-          {!merging && (
+          {mode.type !== "merging" && (
             <button className="btn btn-small btn-secondary" onClick={startMerge}>
               Sloučit
             </button>
@@ -237,7 +260,7 @@ export default function PackageDetailPage() {
         </div>
       </div>
 
-      {editingMeta ? (
+      {mode.type === "editingMeta" ? (
         <form className="meta-editor" onSubmit={handleSaveMeta}>
           <label>
             Název
@@ -305,7 +328,7 @@ export default function PackageDetailPage() {
           </label>
           <div className="editor-actions">
             <button type="submit" className="btn btn-primary">Uložit</button>
-            <button type="button" className="btn btn-secondary" onClick={() => setEditingMeta(false)}>
+            <button type="button" className="btn btn-secondary" onClick={() => dispatch({ type: "VIEW" })}>
               Zrušit
             </button>
           </div>
@@ -314,7 +337,7 @@ export default function PackageDetailPage() {
         pkg.description && <p>{pkg.description}</p>
       )}
 
-      {merging && (
+      {mode.type === "merging" && (
         <div className="merge-panel">
           <h3>Sloučit do tohoto balíčku</h3>
           {otherPackages.length === 0 ? (
@@ -325,8 +348,8 @@ export default function PackageDetailPage() {
                 <label key={p.id} className="merge-item">
                   <input
                     type="checkbox"
-                    checked={selectedSources.has(p.id)}
-                    onChange={() => toggleSource(p.id)}
+                    checked={mode.selectedIds.has(p.id)}
+                    onChange={() => dispatch({ type: "TOGGLE_SOURCE", id: p.id })}
                   />
                   <span className="merge-item__name">{p.name}</span>
                   <span className="merge-item__count">({p.item_count} otázek)</span>
@@ -339,11 +362,11 @@ export default function PackageDetailPage() {
             <button
               className="btn btn-primary"
               onClick={handleMerge}
-              disabled={selectedSources.size === 0}
+              disabled={mode.selectedIds.size === 0}
             >
               Sloučit vybrané
             </button>
-            <button className="btn btn-secondary" onClick={() => setMerging(false)}>
+            <button className="btn btn-secondary" onClick={() => dispatch({ type: "VIEW" })}>
               Zrušit
             </button>
           </div>
@@ -423,9 +446,13 @@ export default function PackageDetailPage() {
                   <>
                     <button
                       className="btn btn-small btn-secondary"
-                      onClick={() => setEditingItemId(editingItemId === item.id ? null : item.id)}
+                      onClick={() => dispatch(
+                        mode.type === "editingItem" && mode.itemId === item.id
+                          ? { type: "VIEW" }
+                          : { type: "EDIT_ITEM", itemId: item.id }
+                      )}
                     >
-                      {editingItemId === item.id ? "Zrušit" : "Upravit"}
+                      {mode.type === "editingItem" && mode.itemId === item.id ? "Zrušit" : "Upravit"}
                     </button>
                     <button
                       className="btn btn-small btn-danger"
@@ -437,19 +464,19 @@ export default function PackageDetailPage() {
                 )}
               </div>
             </div>
-            {editingItemId === item.id && (
+            {mode.type === "editingItem" && mode.itemId === item.id && (
               <ItemEditor
                 item={item}
                 activityType={item.activity_type}
                 onSave={(data) => handleSaveItem(item.id, data)}
-                onCancel={() => setEditingItemId(null)}
+                onCancel={() => dispatch({ type: "VIEW" })}
               />
             )}
           </div>
         ))}
       </div>
 
-      {isEditable && !addingType && (
+      {isEditable && mode.type !== "addingItem" && (
         <div className="add-item-section">
           <h4>Přidat otázku</h4>
           <div className="add-item-types">
@@ -457,7 +484,7 @@ export default function PackageDetailPage() {
               <button
                 key={type}
                 className="btn btn-secondary"
-                onClick={() => { setAddingType(type); setEditingItemId(null); }}
+                onClick={() => dispatch({ type: "ADD_ITEM", activityType: type })}
               >
                 {ACTIVITY_LABELS[type]}
               </button>
@@ -466,13 +493,13 @@ export default function PackageDetailPage() {
         </div>
       )}
 
-      {addingType && (
+      {mode.type === "addingItem" && (
         <div className="add-item-section">
-          <h4>Nová otázka: {ACTIVITY_LABELS[addingType]}</h4>
+          <h4>Nová otázka: {ACTIVITY_LABELS[mode.activityType]}</h4>
           <ItemEditor
-            activityType={addingType}
+            activityType={mode.activityType}
             onSave={handleCreateItem}
-            onCancel={() => setAddingType(null)}
+            onCancel={() => dispatch({ type: "VIEW" })}
           />
         </div>
       )}

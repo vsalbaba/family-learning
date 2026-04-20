@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -8,6 +8,9 @@ from app.database import Base
 
 class LearningSession(Base):
     __tablename__ = "session"
+    __table_args__ = (
+        Index("ix_session_child_finished", "child_id", "finished_at"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     child_id: Mapped[int] = mapped_column(
@@ -36,6 +39,9 @@ class LearningSession(Base):
 
 class Answer(Base):
     __tablename__ = "answer"
+    __table_args__ = (
+        Index("ix_answer_child_correct", "child_id", "is_correct"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[int] = mapped_column(

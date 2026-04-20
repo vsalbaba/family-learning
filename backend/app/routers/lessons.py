@@ -1,4 +1,7 @@
+"""Lesson lifecycle: start, answer, extend, and summary."""
+
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -19,7 +22,7 @@ from app.schemas.session import (
     RewardInfo,
 )
 from app.services.lesson_engine import (
-    MAX_EXTENSIONS,
+    LESSON_CONFIG,
     extend_session,
     get_child_answer_data,
     get_correct_answer_display,
@@ -29,12 +32,15 @@ from app.services.lesson_engine import (
     submit_answer,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
 def _item_to_question(
     item: Item, index: int, total: int, tts_lang: str | None = None
 ) -> QuestionResponse:
+    """Build a QuestionResponse from an Item for the child-facing API."""
     return QuestionResponse(
         item_id=item.id,
         question_index=index,
@@ -86,6 +92,7 @@ def lesson_start(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
+    """Start a new lesson for the current child."""
     try:
         if req.package_id:
             session, first_item = start_lesson(
@@ -105,6 +112,8 @@ def lesson_start(
         else:
             code = status.HTTP_403_FORBIDDEN
         raise HTTPException(status_code=code, detail=msg)
+
+    logger.info("Lesson started: session_id=%d child_id=%d", session.id, user.id)
 
     # Resolve tts_lang from the item's package (works for both modes)
     tts_lang = first_item.package.tts_lang if first_item and first_item.package else None
@@ -127,6 +136,7 @@ def lesson_answer(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
+    """Submit an answer and receive feedback with the next question."""
     session = (
         db.query(LearningSession)
         .filter(LearningSession.id == session_id)
@@ -176,6 +186,7 @@ def lesson_extend(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
+    """Extend a finished lesson with additional questions."""
     session = (
         db.query(LearningSession)
         .filter(LearningSession.id == session_id)
@@ -190,6 +201,8 @@ def lesson_extend(
         first_item = extend_session(db, session)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    logger.info("Lesson extended: session_id=%d", session_id)
 
     tts_lang = first_item.package.tts_lang if first_item and first_item.package else None
     answered_count = (
@@ -212,6 +225,7 @@ def lesson_summary(
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
+    """Return the summary of a completed lesson."""
     session = (
         db.query(LearningSession)
         .filter(LearningSession.id == session_id)
@@ -258,5 +272,5 @@ def lesson_summary(
         finished_at=session.finished_at,
         answers=details,
         extension_count=session.extension_count,
-        can_extend=session.extension_count < MAX_EXTENSIONS,
+        can_extend=session.extension_count < LESSON_CONFIG.max_extensions,
     )

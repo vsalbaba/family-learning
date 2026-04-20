@@ -54,8 +54,8 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
       }
       setItems(list);
       await loadChildView(list[0]);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
     }
   }
 
@@ -95,8 +95,8 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
         setFeedback(resp);
         setState("feedback");
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
       setState("answering");
     }
   }
@@ -111,8 +111,8 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
     setState("loading");
     try {
       await loadChildView(items[nextIdx]);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
     }
   }
 

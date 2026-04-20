@@ -8,14 +8,14 @@ interface Props {
 export default function RewardFeedback({ reward }: Props) {
   if (reward.tokens_suppressed) {
     return (
-      <div className="reward-feedback">
+      <div className="reward-feedback" aria-live="polite">
         <span className="reward-suppressed">Žetony jen za těžší úlohy</span>
       </div>
     );
   }
 
   return (
-    <div className="reward-feedback">
+    <div className="reward-feedback" aria-live="polite">
       <span
         className={`reward-progress-gain ${
           reward.is_streak_bonus

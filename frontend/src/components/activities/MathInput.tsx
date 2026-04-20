@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 interface Props {
+  /** JSON string: `{ unit?: string }`. Optional unit label displayed next to the input. */
   answerData: string;
+  /** Called with `{ value: string }` — the child's numeric answer as a string. */
   onSubmit: (answer: unknown) => void;
 }
 

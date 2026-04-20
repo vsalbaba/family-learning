@@ -1,5 +1,8 @@
+"""Text-to-speech synthesis with Piper and WAV caching."""
+
 import hashlib
 import io
+import logging
 import wave
 from pathlib import Path
 
@@ -9,6 +12,8 @@ from fastapi.responses import FileResponse
 from piper import PiperVoice
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -21,13 +26,14 @@ _loaded_voices: dict[str, PiperVoice] = {}
 
 
 def _get_voice(lang: str) -> PiperVoice:
+    """Load and cache a Piper voice model for the given language."""
     if lang in _loaded_voices:
         return _loaded_voices[lang]
     model_path = Path(settings.tts_voices_dir) / VOICE_MAP[lang]
     if not model_path.exists():
         raise HTTPException(
             status_code=503,
-            detail=f"Voice model for '{lang}' not installed",
+            detail=f"Hlasový model pro '{lang}' není nainstalován",
         )
     voice = PiperVoice.load(str(model_path))
     _loaded_voices[lang] = voice
@@ -39,15 +45,18 @@ def text_to_speech(
     text: str = Query(..., max_length=500),
     lang: str = Query("en"),
 ):
+    """Synthesize text to a WAV audio file, returning a cached result if available."""
     text = text.strip()
     if not text:
-        raise HTTPException(status_code=400, detail="Text must not be empty")
+        raise HTTPException(status_code=400, detail="Text nesmí být prázdný")
 
     if lang not in VOICE_MAP:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported language: {lang}. Supported: {', '.join(VOICE_MAP)}",
+            detail=f"Nepodporovaný jazyk: {lang}. Podporované: {', '.join(VOICE_MAP)}",
         )
+
+    logger.info("TTS: lang=%s text_len=%d", lang, len(text))
 
     # Cache lookup
     cache_dir = Path(settings.tts_cache_dir)
@@ -62,7 +71,7 @@ def text_to_speech(
     voice = _get_voice(lang)
     audio_chunks = list(voice.synthesize(text))
     if not audio_chunks:
-        raise HTTPException(status_code=500, detail="TTS produced no audio")
+        raise HTTPException(status_code=500, detail="TTS nevygenerovalo žádný zvuk")
 
     # Combine chunks into a single WAV
     sample_rate = audio_chunks[0].sample_rate

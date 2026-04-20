@@ -1,3 +1,5 @@
+import { UnauthorizedError } from "./errors";
+
 const API_BASE = "/api";
 
 async function request<T>(
@@ -24,9 +26,8 @@ async function request<T>(
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
   if (res.status === 401) {
-    localStorage.removeItem("token");
-    window.location.href = "/";
-    throw new Error("Unauthorized");
+    window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    throw new UnauthorizedError();
   }
 
   if (res.status === 204) {

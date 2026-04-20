@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import ErrorBoundary from "./components/ErrorBoundary";
 import AppShell from "./components/layout/AppShell";
 import LoginScreen from "./components/auth/LoginScreen";
 import ParentHome from "./pages/ParentHome";
@@ -61,7 +62,9 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

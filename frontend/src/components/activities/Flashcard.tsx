@@ -2,8 +2,11 @@ import { useState } from "react";
 import SpeakButton from "../common/SpeakButton";
 
 interface Props {
+  /** JSON string: `{ answer: string }`. The answer text revealed on card flip. */
   answerData: string;
+  /** Called with `{ self_score: "ok" }` after the child reveals and acknowledges the answer. */
   onSubmit: (answer: unknown) => void;
+  /** BCP-47 language tag for text-to-speech, or null if TTS disabled. */
   ttsLang: string | null;
 }
 

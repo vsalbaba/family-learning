@@ -1,3 +1,5 @@
+"""Farmageddon mini-game wave configuration endpoint."""
+
 from fastapi import APIRouter
 
 from app.schemas.farmageddon import WaveConfigResponse

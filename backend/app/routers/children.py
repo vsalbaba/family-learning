@@ -1,3 +1,7 @@
+"""Child account management and progress tracking."""
+
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -9,6 +13,8 @@ from app.models.user import User
 from app.routers.auth import require_parent
 from app.schemas.user import ChildCreate, ChildResponse, ChildUpdate, UserResponse
 from app.services.auth_service import hash_pin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -29,6 +35,7 @@ def list_children(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """List all children belonging to the current parent."""
     children = db.query(User).filter(
         User.role == "child", User.parent_id == user.id
     ).all()
@@ -41,6 +48,7 @@ def create_child(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Create a new child account under the current parent."""
     child = User(
         name=req.name,
         role="child",
@@ -53,6 +61,7 @@ def create_child(
     db.add(child)
     db.commit()
     db.refresh(child)
+    logger.info("Child created: id=%d name=%s", child.id, child.name)
     return child
 
 
@@ -63,11 +72,12 @@ def update_child(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Update a child's profile fields."""
     child = db.query(User).filter(
         User.id == child_id, User.role == "child", User.parent_id == user.id
     ).first()
     if not child:
-        raise HTTPException(status_code=404, detail="Child not found")
+        raise HTTPException(status_code=404, detail="Dítě nenalezeno")
     if req.name is not None:
         child.name = req.name
     if req.pin is not None:
@@ -90,13 +100,15 @@ def delete_child(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Delete a child account and all associated data."""
     child = db.query(User).filter(
         User.id == child_id, User.role == "child", User.parent_id == user.id
     ).first()
     if not child:
-        raise HTTPException(status_code=404, detail="Child not found")
+        raise HTTPException(status_code=404, detail="Dítě nenalezeno")
     db.delete(child)
     db.commit()
+    logger.info("Child deleted: id=%d", child_id)
 
 
 @router.get("/{child_id}/progress")
@@ -105,11 +117,12 @@ def get_child_progress(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
+    """Return detailed progress statistics for a child."""
     child = db.query(User).filter(
         User.id == child_id, User.role == "child", User.parent_id == user.id
     ).first()
     if not child:
-        raise HTTPException(status_code=404, detail="Child not found")
+        raise HTTPException(status_code=404, detail="Dítě nenalezeno")
 
     # All finished sessions for this child
     sessions = (

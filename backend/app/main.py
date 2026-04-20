@@ -1,12 +1,17 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.routers import auth, children, farmageddon, lessons, packages, rewards, tts
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -15,133 +20,17 @@ async def lifespan(app: FastAPI):
         Path("data").mkdir(exist_ok=True)
         Path("data/tts_cache").mkdir(exist_ok=True)
         Base.metadata.create_all(bind=engine)
-        # Add columns that may not exist yet (create_all doesn't alter tables)
-        _migrate_add_columns(engine)
+        _run_migrations()
     yield
 
 
-def _migrate_add_columns(eng):
-    """Add new columns to existing tables if they don't exist yet."""
-    with eng.connect() as conn:
-        raw = conn.connection.connection  # type: ignore[union-attr]
-
-        # Package table migrations
-        cursor = raw.execute("PRAGMA table_info(package)")
-        pkg_columns = {row[1] for row in cursor.fetchall()}
-        if "tts_lang" not in pkg_columns:
-            raw.execute("ALTER TABLE package ADD COLUMN tts_lang TEXT")
-        if "subject_display" not in pkg_columns:
-            raw.execute("ALTER TABLE package ADD COLUMN subject_display TEXT")
-            # Backfill: preserve original subject as display, then normalize subject
-            raw.execute(
-                "UPDATE package SET subject_display = subject"
-                " WHERE subject IS NOT NULL AND subject_display IS NULL"
-            )
-            raw.execute(
-                "UPDATE package SET subject = LOWER(TRIM(subject))"
-                " WHERE subject IS NOT NULL"
-            )
-        if "grade" not in pkg_columns:
-            raw.execute("ALTER TABLE package ADD COLUMN grade INTEGER")
-        if "topic" not in pkg_columns:
-            raw.execute("ALTER TABLE package ADD COLUMN topic TEXT")
-        raw.commit()
-
-        # Session table migration: make package_id nullable, add subject
-        _migrate_session_table(raw)
-
-        # User table: reward columns
-        cursor = raw.execute("PRAGMA table_info(user)")
-        user_columns = {row[1] for row in cursor.fetchall()}
-        for col in ("reward_progress", "reward_streak", "game_tokens"):
-            if col not in user_columns:
-                raw.execute(
-                    f"ALTER TABLE user ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0"
-                )
-        # Backfill NULLs for existing rows (SQLite may leave NULL despite DEFAULT)
-        for col in ("reward_progress", "reward_streak", "game_tokens"):
-            raw.execute(f"UPDATE user SET {col} = 0 WHERE {col} IS NULL")
-        raw.commit()
-
-        # User table: game window column
-        if "game_window_expires_at" not in user_columns:
-            raw.execute("ALTER TABLE user ADD COLUMN game_window_expires_at TEXT")
-        raw.commit()
-
-        # User table: pin_plain column
-        if "pin_plain" not in user_columns:
-            raw.execute("ALTER TABLE user ADD COLUMN pin_plain TEXT")
-        raw.commit()
-
-        # User table: grade column
-        if "grade" not in user_columns:
-            raw.execute("ALTER TABLE user ADD COLUMN grade INTEGER")
-        raw.commit()
-
-        # Session table: extension_count column
-        cursor = raw.execute("PRAGMA table_info(session)")
-        sess_columns = {row[1] for row in cursor.fetchall()}
-        if "extension_count" not in sess_columns:
-            raw.execute(
-                "ALTER TABLE session ADD COLUMN extension_count INTEGER NOT NULL DEFAULT 0"
-            )
-        raw.execute("UPDATE session SET extension_count = 0 WHERE extension_count IS NULL")
-        if "grade" not in sess_columns:
-            raw.execute("ALTER TABLE session ADD COLUMN grade INTEGER")
-        raw.commit()
-
-
-def _migrate_session_table(raw):
-    """Rebuild session table: make package_id nullable, add subject column.
-
-    SQLite cannot ALTER COLUMN, so we rebuild the table.
-    The answer table has session_id FK with ON DELETE CASCADE,
-    so we must disable FK enforcement during the rebuild.
-    """
-    cursor = raw.execute("PRAGMA table_info(session)")
-    columns = {row[1] for row in cursor.fetchall()}
-    if "subject" in columns:
-        return  # already migrated
-
-    raw.execute("PRAGMA foreign_keys = OFF")
-    try:
-        raw.execute("BEGIN TRANSACTION")
-
-        raw.execute("""
-            CREATE TABLE session_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                child_id INTEGER NOT NULL REFERENCES user(id),
-                package_id INTEGER REFERENCES package(id),
-                subject TEXT,
-                started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                finished_at DATETIME,
-                total_questions INTEGER NOT NULL,
-                correct_count INTEGER NOT NULL DEFAULT 0,
-                item_ids TEXT NOT NULL DEFAULT '[]'
-            )
-        """)
-        raw.execute("""
-            INSERT INTO session_new
-                (id, child_id, package_id, started_at, finished_at,
-                 total_questions, correct_count, item_ids)
-            SELECT id, child_id, package_id, started_at, finished_at,
-                   total_questions, correct_count, item_ids
-            FROM session
-        """)
-        raw.execute("DROP TABLE session")
-        raw.execute("ALTER TABLE session_new RENAME TO session")
-
-        raw.execute("COMMIT")
-    except Exception:
-        raw.execute("ROLLBACK")
-        raise
-    finally:
-        raw.execute("PRAGMA foreign_keys = ON")
-
-    # Verify FK integrity after rebuild
-    violations = raw.execute("PRAGMA foreign_key_check(session)").fetchall()
-    if violations:
-        raise RuntimeError(f"FK violations after session migration: {violations}")
+def _run_migrations():
+    """Apply pending Alembic migrations at startup."""
+    alembic_cfg = Config(
+        str(Path(__file__).resolve().parent.parent / "alembic.ini")
+    )
+    command.upgrade(alembic_cfg, "head")
+    logger.info("Alembic migrations applied")
 
 
 app = FastAPI(title="Family Learning", version="0.1.0", lifespan=lifespan)

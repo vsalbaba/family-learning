@@ -1,3 +1,6 @@
+"""Game window activation and token management."""
+
+import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,6 +11,8 @@ from app.config import settings
 from app.database import get_db
 from app.models.user import User
 from app.routers.auth import require_child
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -41,8 +46,9 @@ def activate_window(
     )
     db.commit()
     if result.rowcount == 0:
-        raise HTTPException(status_code=400, detail="No tokens available")
+        raise HTTPException(status_code=400, detail="Žádné dostupné žetony")
     db.refresh(user)
+    logger.info("Game window activated: user_id=%d expires=%s", user.id, user.game_window_expires_at)
     return {
         "game_tokens": user.game_tokens,
         "window_expires_at": user.game_window_expires_at.isoformat(),

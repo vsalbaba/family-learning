@@ -2,8 +2,11 @@ import { useState } from "react";
 import SpeakButton from "../common/SpeakButton";
 
 interface Props {
+  /** JSON string: `{ options: string[], index_map?: number[] }`. Options to display; index_map maps display order back to original indices. */
   answerData: string;
+  /** Called with `{ selected: number, selected_text: string }` when the child submits. */
   onSubmit: (answer: unknown) => void;
+  /** BCP-47 language tag for text-to-speech, or null if TTS disabled. */
   ttsLang?: string | null;
 }
 
@@ -27,6 +30,7 @@ export default function MultipleChoice({ answerData, onSubmit, ttsLang }: Props)
             <button
               className={`mc-option ${selected === i ? "mc-option--selected" : ""}`}
               onClick={() => setSelected(i)}
+              aria-pressed={selected === i}
             >
               {opt}
             </button>

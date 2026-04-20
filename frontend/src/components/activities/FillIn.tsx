@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 interface Props {
+  /** Called with `{ text: string }` — the child's typed answer. */
   onSubmit: (answer: unknown) => void;
 }
 

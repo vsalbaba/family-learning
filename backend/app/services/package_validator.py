@@ -1,3 +1,5 @@
+"""Two-tier JSON validation for learning packages."""
+
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -28,16 +30,19 @@ class ValidationResult:
 
 
 def _load_schema() -> dict:
+    """Load the JSON Schema for package validation."""
     with open(SCHEMA_PATH) as f:
         return json.load(f)
 
 
 def _add_error(result: ValidationResult, code: str, message: str, path: str):
+    """Append a hard error to the validation result."""
     result.hard_errors.append(ValError(code, message, path, "error"))
     result.is_valid = False
 
 
 def _add_warning(result: ValidationResult, code: str, message: str, path: str):
+    """Append a soft warning to the validation result."""
     result.soft_warnings.append(ValError(code, message, path, "warning"))
 
 

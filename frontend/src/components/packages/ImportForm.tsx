@@ -22,8 +22,8 @@ export default function ImportForm({ onSuccess }: Props) {
       const resp = await importPackageJson(jsonText);
       setResult(resp);
       if (resp.package) onSuccess();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
     } finally {
       setLoading(false);
     }
@@ -38,8 +38,8 @@ export default function ImportForm({ onSuccess }: Props) {
       const resp = await importPackageFile(file);
       setResult(resp);
       if (resp.package) onSuccess();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
     } finally {
       setLoading(false);
     }

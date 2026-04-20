@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Question, AnswerResponse, LessonSummary } from "../../types/lesson";
 import { startLesson, submitAnswer, getLessonSummary, extendLesson } from "../../api/lessons";
+import { LESSON } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
 import ProgressBar from "./ProgressBar";
 import QuestionCard from "./QuestionCard";
@@ -37,8 +38,8 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
       setQuestion(resp.question);
       startTimeRef.current = Date.now();
       setState("answering");
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
       setState("idle");
     }
   }
@@ -68,8 +69,8 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
         setFeedback(resp);
         setState("feedback");
       }
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
       setState("answering");
     }
   }
@@ -88,8 +89,8 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
         const s = await getLessonSummary(sessionId);
         setSummary(s);
         setState("summary");
-      } catch (e: any) {
-        setError(e.message);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : "Neznámá chyba");
         setState("answering");
       }
     }
@@ -104,8 +105,8 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
       setFeedback(null);
       startTimeRef.current = Date.now();
       setState("answering");
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Neznámá chyba");
       setState("summary");
     }
   }
@@ -115,7 +116,7 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
       <div className="lesson-start">
         <h2>Kolik otázek?</h2>
         <div className="question-count-select">
-          {[3, 5, 10, 20].map((n) => (
+          {LESSON.QUESTION_COUNT_OPTIONS.map((n) => (
             <button
               key={n}
               className={`btn ${questionCount === n ? "btn-primary" : "btn-secondary"}`}

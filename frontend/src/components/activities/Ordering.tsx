@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 interface Props {
+  /** JSON string: `{ items: string[] }`. Items in shuffled order for the child to reorder. */
   answerData: string;
+  /** Called with `{ order: string[] }` — items in the child's chosen order. */
   onSubmit: (answer: unknown) => void;
 }
 
@@ -35,6 +37,7 @@ export default function Ordering({ answerData, onSubmit }: Props) {
                 className="btn btn-small"
                 onClick={() => moveUp(i)}
                 disabled={i === 0}
+                aria-label={`Posunout "${item}" nahoru`}
               >
                 ↑
               </button>
@@ -42,6 +45,7 @@ export default function Ordering({ answerData, onSubmit }: Props) {
                 className="btn btn-small"
                 onClick={() => moveDown(i)}
                 disabled={i === order.length - 1}
+                aria-label={`Posunout "${item}" dolů`}
               >
                 ↓
               </button>

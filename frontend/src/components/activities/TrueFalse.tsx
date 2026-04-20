@@ -1,4 +1,5 @@
 interface Props {
+  /** Called with `{ answer: boolean }` when the child clicks Pravda/Nepravda. */
   onSubmit: (answer: unknown) => void;
 }
 

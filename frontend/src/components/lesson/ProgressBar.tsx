@@ -11,7 +11,7 @@ export default function ProgressBar({ current, total }: Props) {
       <div className="progress-text">
         Otázka {current + 1} z {total}
       </div>
-      <div className="progress-bar">
+      <div className="progress-bar" role="progressbar" aria-valuenow={current + 1} aria-valuemin={1} aria-valuemax={total}>
         <div className="progress-fill" style={{ width: `${pct}%` }} />
       </div>
     </div>
