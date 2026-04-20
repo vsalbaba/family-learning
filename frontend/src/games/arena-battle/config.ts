@@ -63,9 +63,9 @@ export const DEFAULT_CONFIG: ArenaConfig = {
   // ── Player unit stats ───────────────────────────────────────────
   unitStats: {
     pesak: {
-      hp: 60,
+      hp: 70,
       damage: 15,
-      speed: 40,
+      speed: 45,
       attackRange: 20,
       attackCooldownMs: 1200,
       splashRadius: 0,
@@ -89,20 +89,20 @@ export const DEFAULT_CONFIG: ArenaConfig = {
     obr: {
       hp: 150,
       damage: 20,
-      speed: 25,
+      speed: 15,
       attackRange: 25,
       attackCooldownMs: 1800,
-      splashRadius: 0,
+      splashRadius: 5,
     },
   },
 
   // ── Enemy stats ─────────────────────────────────────────────────
   enemyStats: {
-    hp: 80,
-    damage: 10,
-    speed: 40,
+    hp: 55,
+    damage: 7,
+    speed: 28,
     attackRange: 15,
-    attackCooldownMs: 1000,
+    attackCooldownMs: 1200,
   },
 
   // ── Spawn phases (inter-burst pause decreases over time) ────────
