@@ -1,8 +1,8 @@
 import type { ArenaGameState } from "../game-state";
 
 /**
- * Spawn enemies from the right castle at decreasing intervals.
- * The current interval is determined by spawnPhases config based on elapsed time.
+ * Spawn enemies in bursts (2-4 enemies with short delays),
+ * separated by longer pauses between bursts.
  */
 export function updateEnemySpawner(state: ArenaGameState, dt: number): void {
   if (state.phase !== "playing") return;
@@ -20,6 +20,16 @@ export function updateEnemySpawner(state: ArenaGameState, dt: number): void {
   state.enemySpawnTimer -= dt;
   if (state.enemySpawnTimer <= 0) {
     state.spawnEnemy();
-    state.enemySpawnTimer += state.enemySpawnInterval;
+
+    if (state.burstRemaining > 0) {
+      // Mid-burst: short delay to next enemy
+      state.burstRemaining--;
+      state.enemySpawnTimer += state.config.burst.delayMs;
+    } else {
+      // Burst complete: start new burst after inter-burst pause
+      const { minSize, maxSize } = state.config.burst;
+      state.burstRemaining = minSize + Math.floor(Math.random() * (maxSize - minSize + 1)) - 1;
+      state.enemySpawnTimer += state.enemySpawnInterval;
+    }
   }
 }

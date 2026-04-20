@@ -82,8 +82,8 @@ function findNearestEnemyInRange(state: ArenaGameState, unit: PlayerUnit): Enemy
 
   for (const enemy of state.enemies.values()) {
     if (enemy.state === "dying" || enemy.state === "spawning") continue;
-    const dist = enemy.x - unit.x;
-    if (dist > 0 && dist <= unit.attackRange && dist < nearestDist) {
+    const dist = Math.abs(enemy.x - unit.x);
+    if (dist <= unit.attackRange && dist < nearestDist) {
       nearestDist = dist;
       nearest = enemy;
     }
@@ -147,8 +147,8 @@ function findNearestPlayerInRange(state: ArenaGameState, enemy: Enemy): PlayerUn
 
   for (const unit of state.playerUnits.values()) {
     if (unit.state === "dying") continue;
-    const dist = enemy.x - unit.x;
-    if (dist > 0 && dist <= enemy.attackRange && dist < nearestDist) {
+    const dist = Math.abs(enemy.x - unit.x);
+    if (dist <= enemy.attackRange && dist < nearestDist) {
       nearestDist = dist;
       nearest = unit;
     }

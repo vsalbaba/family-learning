@@ -106,7 +106,13 @@ export interface EnemyStatBlock {
 
 export interface SpawnPhase {
   afterMs: number; // elapsed time when this phase starts
-  intervalMs: number; // enemy spawn interval during this phase
+  intervalMs: number; // pause between bursts during this phase
+}
+
+export interface BurstConfig {
+  minSize: number; // minimum enemies per burst
+  maxSize: number; // maximum enemies per burst
+  delayMs: number; // delay between enemies within a burst
 }
 
 export interface PerspectiveConfig {
@@ -133,6 +139,7 @@ export interface ArenaConfig {
   enemyStats: EnemyStatBlock;
 
   spawnPhases: SpawnPhase[];
+  burst: BurstConfig;
   spawningDurationMs: number;
   dyingDurationMs: number;
   hitFlashMs: number;

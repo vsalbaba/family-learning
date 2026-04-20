@@ -12,27 +12,27 @@ export function updateMovement(state: ArenaGameState, dt: number): void {
   for (const unit of state.playerUnits.values()) {
     if (unit.state === "dying" || unit.state === "hit") continue;
 
-    // Find nearest enemy ahead (to the right)
-    let nearestEnemyX = Infinity;
+    // Find nearest enemy by absolute distance (not directional)
+    let nearestDist = Infinity;
     for (const enemy of state.enemies.values()) {
       if (enemy.state === "dying" || enemy.state === "spawning") continue;
-      if (enemy.x > unit.x && enemy.x < nearestEnemyX) {
-        nearestEnemyX = enemy.x;
+      const dist = Math.abs(enemy.x - unit.x);
+      if (dist < nearestDist) {
+        nearestDist = dist;
       }
     }
 
-    const distToTarget = nearestEnemyX - unit.x;
-    if (distToTarget <= unit.attackRange) {
-      // In range — stop and face target
+    if (nearestDist <= unit.attackRange) {
+      // In range — stop and attack
       if (unit.state === "walking") {
         unit.state = "attacking";
       }
     } else {
-      // Walk toward enemies
+      // Walk toward enemies (right)
       unit.state = "walking";
       unit.x += unit.speed * dtSec;
-      // Don't walk past the right castle
-      const rightBound = state.config.boardWidthPx - state.config.castleWidthPx;
+      // Don't walk too close to the enemy castle — leave space for enemy spawns
+      const rightBound = state.config.boardWidthPx - state.config.castleWidthPx - 20;
       if (unit.x > rightBound) unit.x = rightBound;
     }
   }
@@ -41,23 +41,23 @@ export function updateMovement(state: ArenaGameState, dt: number): void {
   for (const enemy of state.enemies.values()) {
     if (enemy.state === "dying" || enemy.state === "hit" || enemy.state === "spawning") continue;
 
-    // Find nearest player unit ahead (to the left)
-    let nearestUnitX = -Infinity;
+    // Find nearest player unit by absolute distance
+    let nearestDist = Infinity;
     for (const unit of state.playerUnits.values()) {
       if (unit.state === "dying") continue;
-      if (unit.x < enemy.x && unit.x > nearestUnitX) {
-        nearestUnitX = unit.x;
+      const dist = Math.abs(enemy.x - unit.x);
+      if (dist < nearestDist) {
+        nearestDist = dist;
       }
     }
 
-    const distToTarget = enemy.x - nearestUnitX;
-    if (nearestUnitX > -Infinity && distToTarget <= enemy.attackRange) {
-      // In range — stop
+    if (nearestDist <= enemy.attackRange) {
+      // In range — stop and attack
       if (enemy.state === "walking") {
         enemy.state = "attacking";
       }
     } else {
-      // Walk toward player castle
+      // Walk toward player castle (left)
       enemy.state = "walking";
       enemy.x -= enemy.speed * dtSec;
     }

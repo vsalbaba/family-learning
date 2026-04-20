@@ -30,6 +30,7 @@ export class ArenaGameState {
   enemySpawnTimer: number;
   enemySpawnInterval: number;
   enemiesSpawned = 0;
+  burstRemaining = 0; // enemies left to spawn in current burst
 
   stats: GameStats = {
     easyAnswered: 0,
