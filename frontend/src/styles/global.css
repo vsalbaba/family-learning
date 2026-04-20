@@ -2122,3 +2122,144 @@ body {
   display: flex;
   gap: 0.75rem;
 }
+
+/* ── Arena Battle ──────────────────────────────────────────────────── */
+
+.arena-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+.arena-header {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 800px;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.arena-timer {
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-board {
+  border: 2px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.arena-questions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 800px;
+}
+
+.arena-task-card {
+  flex: 1;
+  border: 2px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.75rem;
+  text-align: center;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.arena-task-card--easy {
+  border-color: #6b8fcc;
+}
+
+.arena-task-card--hard {
+  border-color: #cc8f6b;
+}
+
+.arena-task-card--correct {
+  background-color: rgba(22, 163, 74, 0.15);
+  border-color: var(--color-success);
+}
+
+.arena-task-card--wrong {
+  background-color: rgba(220, 38, 38, 0.15);
+  border-color: var(--color-danger);
+}
+
+.arena-task-tier {
+  font-size: 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+.arena-task-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-task-answers {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.arena-answer-btn {
+  flex: 1;
+  max-width: 120px;
+  font-size: 1.3rem;
+  font-weight: 700;
+  padding: 0.6rem 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.arena-summary-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.arena-summary {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+  min-width: 280px;
+}
+
+.arena-summary h2 {
+  margin-bottom: 1rem;
+}
+
+.arena-summary-stats {
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+.arena-summary-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.btn-end-game {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .arena-questions {
+    flex-direction: column;
+  }
+
+  .arena-task-text {
+    font-size: 1.2rem;
+  }
+
+  .arena-answer-btn {
+    font-size: 1.1rem;
+  }
+}

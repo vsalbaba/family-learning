@@ -5,6 +5,7 @@ import { DEFAULT_CONFIG } from "../config";
 import { useArenaGame } from "../hooks/useArenaGame";
 import ArenaBoard from "./ArenaBoard";
 import ArenaSummary from "./ArenaSummary";
+import QuestionPanel from "./QuestionPanel";
 
 export default function ArenaGame() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export default function ArenaGame() {
   const { isActive: windowActive } = useGameWindow();
   const config = DEFAULT_CONFIG;
 
-  const { view, restart } = useArenaGame(canvasRef, config);
+  const { view, handleAnswer, restart } = useArenaGame(canvasRef, config);
 
   return (
     <div className="arena-game">
@@ -23,10 +24,11 @@ export default function ArenaGame() {
 
       <ArenaBoard ref={canvasRef} config={config} />
 
-      {/* QuestionPanel will be added in M2 */}
-      <div className="arena-question-placeholder">
-        <p>Otázky budou zde</p>
-      </div>
+      <QuestionPanel
+        config={config.question}
+        gameActive={view.phase === "playing"}
+        onAnswer={handleAnswer}
+      />
 
       {view.summary && (
         <ArenaSummary
