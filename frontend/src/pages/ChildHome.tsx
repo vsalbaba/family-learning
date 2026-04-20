@@ -91,15 +91,9 @@ export default function ChildHome() {
               </button>
               <button
                 className="btn btn-primary game-btn"
-                disabled={!windowActive && (tokens < 1 || paying)}
-                onClick={() => playGame("/games/arena-battle")}
+                onClick={() => navigate("/games/arena-battle")}
               >
                 <span>Aréna</span>
-                {!windowActive && (
-                  <span className="game-btn-cost">
-                    <TokenIcon size={14} />1
-                  </span>
-                )}
               </button>
             </div>
           </div>

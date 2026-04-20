@@ -1,5 +1,6 @@
 import type { ArenaGameState } from "./game-state";
 import type { ArenaViewState } from "./types";
+import type { ArenaSpriteManager } from "./sprite-manager";
 import { render } from "./renderer";
 import { updateEnemySpawner } from "./systems/enemy-spawner";
 import { updateMovement } from "./systems/movement";
@@ -15,6 +16,7 @@ const VIEW_SYNC_INTERVAL_MS = 100;
 export function createArenaGameLoop(
   state: ArenaGameState,
   ctx: CanvasRenderingContext2D,
+  sprites: ArenaSpriteManager,
   onViewUpdate: (view: ArenaViewState) => void,
 ): ArenaGameLoop {
   let lastTime = 0;
@@ -52,7 +54,7 @@ export function createArenaGameLoop(
     }
 
     // 7. Render
-    render(ctx, state, dt);
+    render(ctx, state, sprites, dt);
 
     // 8. Throttled view sync
     viewSyncTimer -= dt;

@@ -6,15 +6,17 @@ import type {
   PlayerUnit,
   SpellEffect,
 } from "./types";
+import type { ArenaSpriteManager } from "./sprite-manager";
+import { playerSpriteState, enemySpriteState } from "./sprite-manager";
 
-// ── Colors ──────────────────────────────────────────────────────────
+// ── Colors (fallback when sprites not loaded) ───────────────────────
 
 const COLORS = {
-  background: "#d4e6b5", // light green field
+  background: "#d4e6b5",
   laneLine: "#b8d494",
-  playerCastle: "#4a7ab5", // blue castle
+  playerCastle: "#4a7ab5",
   playerCastleRoof: "#3a6295",
-  enemyCastle: "#b54a4a", // red castle
+  enemyCastle: "#b54a4a",
   enemyCastleRoof: "#953a3a",
   pesak: "#4a8ab5",
   lucistnik: "#5aaa5a",
@@ -24,9 +26,6 @@ const COLORS = {
   enemySpawning: "rgba(196,74,74,0.5)",
   hitFlash: "rgba(255,0,0,0.5)",
   spellEffect: "rgba(255,220,60,0.6)",
-  hpBarBg: "rgba(0,0,0,0.3)",
-  hpBarFill: "#4caf50",
-  hpBarLow: "#f44336",
 };
 
 const UNIT_EMOJI: Record<string, string> = {
@@ -34,7 +33,12 @@ const UNIT_EMOJI: Record<string, string> = {
   lucistnik: "🏹",
   carodej: "🧙",
   obr: "👹",
-  enemy: "💀",
+};
+
+const ENEMY_EMOJI: Record<string, string> = {
+  "enemy-skeleton": "💀",
+  "enemy-orc": "👺",
+  "enemy-bat": "🦇",
 };
 
 const UNIT_COLOR: Record<string, string> = {
@@ -45,26 +49,27 @@ const UNIT_COLOR: Record<string, string> = {
 };
 
 const BASE_UNIT_RADIUS = 14;
-
-// ── Render order ────────────────────────────────────────────────────
-
 const SLOT_ORDER: PerspectiveSlot[] = ["back", "mid", "front"];
+
+let globalTimer = 0;
 
 // ── Main render ─────────────────────────────────────────────────────
 
 export function render(
   ctx: CanvasRenderingContext2D,
   state: ArenaGameState,
-  _dt: number, // eslint-disable-line @typescript-eslint/no-unused-vars -- reserved for animations
+  sprites: ArenaSpriteManager,
+  dt: number,
 ): void {
+  globalTimer += dt;
   const { config } = state;
 
   ctx.clearRect(0, 0, config.boardWidthPx, config.boardHeightPx);
 
   drawBackground(ctx, config);
   drawCastles(ctx, config);
-  drawSpellEffects(ctx, state);
-  drawEntitiesSorted(ctx, state);
+  drawSpellEffects(ctx, state, sprites);
+  drawEntitiesSorted(ctx, state, sprites);
 }
 
 // ── Background ──────────────────────────────────────────────────────
@@ -73,7 +78,6 @@ function drawBackground(ctx: CanvasRenderingContext2D, config: ArenaConfig): voi
   ctx.fillStyle = COLORS.background;
   ctx.fillRect(0, 0, config.boardWidthPx, config.boardHeightPx);
 
-  // Lane horizontal lines (subtle)
   ctx.strokeStyle = COLORS.laneLine;
   ctx.lineWidth = 1;
   const top = config.laneCenterY - 40;
@@ -92,14 +96,12 @@ function drawCastles(ctx: CanvasRenderingContext2D, config: ArenaConfig): void {
   const h = config.boardHeightPx;
   const cw = config.castleWidthPx;
 
-  // Player castle (left)
   ctx.fillStyle = COLORS.playerCastle;
   ctx.fillRect(0, 0, cw, h);
   ctx.fillStyle = COLORS.playerCastleRoof;
   ctx.fillRect(0, 0, cw, 12);
   ctx.fillRect(0, h - 12, cw, 12);
 
-  // Enemy castle (right)
   ctx.fillStyle = COLORS.enemyCastle;
   ctx.fillRect(config.boardWidthPx - cw, 0, cw, h);
   ctx.fillStyle = COLORS.enemyCastleRoof;
@@ -112,13 +114,23 @@ function drawCastles(ctx: CanvasRenderingContext2D, config: ArenaConfig): void {
 function drawSpellEffects(
   ctx: CanvasRenderingContext2D,
   state: ArenaGameState,
+  sprites: ArenaSpriteManager,
 ): void {
   for (const effect of state.spellEffects) {
-    drawSpellEffect(ctx, effect);
+    const elapsed = effect.duration - effect.timer;
+    const size = 48;
+    if (
+      sprites.hasSprite("spell") &&
+      sprites.draw(ctx, "spell", "cast", elapsed, effect.x, effect.y, size, size)
+    ) {
+      continue;
+    }
+    // Fallback
+    drawSpellEffectFallback(ctx, effect);
   }
 }
 
-function drawSpellEffect(
+function drawSpellEffectFallback(
   ctx: CanvasRenderingContext2D,
   effect: SpellEffect,
 ): void {
@@ -137,10 +149,10 @@ function drawSpellEffect(
 function drawEntitiesSorted(
   ctx: CanvasRenderingContext2D,
   state: ArenaGameState,
+  sprites: ArenaSpriteManager,
 ): void {
   const { config } = state;
 
-  // Collect all entities with their perspective info
   type DrawEntry = {
     slot: PerspectiveSlot;
     x: number;
@@ -153,7 +165,7 @@ function drawEntitiesSorted(
     entries.push({
       slot: unit.perspectiveSlot,
       x: unit.x,
-      draw: () => drawPlayerUnit(ctx, unit, config),
+      draw: () => drawPlayerUnit(ctx, unit, config, sprites),
     });
   }
 
@@ -161,11 +173,10 @@ function drawEntitiesSorted(
     entries.push({
       slot: enemy.perspectiveSlot,
       x: enemy.x,
-      draw: () => drawEnemy(ctx, enemy, config),
+      draw: () => drawEnemy(ctx, enemy, config, sprites),
     });
   }
 
-  // Sort: back first, then mid, then front. Within same slot, by x.
   entries.sort((a, b) => {
     const slotA = SLOT_ORDER.indexOf(a.slot);
     const slotB = SLOT_ORDER.indexOf(b.slot);
@@ -184,27 +195,42 @@ function drawPlayerUnit(
   ctx: CanvasRenderingContext2D,
   unit: PlayerUnit,
   config: ArenaConfig,
+  sprites: ArenaSpriteManager,
 ): void {
   const perspective = config.perspective.slots[unit.perspectiveSlot];
   const drawY = unit.y + perspective.yOffset;
   const scale = perspective.scale;
-  const radius = BASE_UNIT_RADIUS * scale;
+  const size = BASE_UNIT_RADIUS * 2 * scale;
 
   ctx.save();
 
-  // Dying: fade out
   if (unit.state === "dying") {
-    const alpha = Math.max(0, unit.animTimer / config.dyingDurationMs);
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.max(0, unit.animTimer / config.dyingDurationMs);
   }
 
-  // Base circle
+  // Try sprite
+  const spriteState = playerSpriteState(unit.state);
+  let spriteTimer = globalTimer;
+  if (unit.state === "hit") spriteTimer = config.hitFlashMs - unit.animTimer;
+  else if (unit.state === "dying") spriteTimer = config.dyingDurationMs - unit.animTimer;
+  else if (unit.state === "attacking") spriteTimer = unit.attackCooldownMax - unit.attackCooldown;
+
+  if (
+    sprites.hasSprite(unit.type) &&
+    sprites.draw(ctx, unit.type, spriteState, spriteTimer, unit.x, drawY, size, size)
+  ) {
+    ctx.restore();
+    return;
+  }
+
+  // Fallback: colored circle + emoji
+  const radius = BASE_UNIT_RADIUS * scale;
+
   ctx.fillStyle = UNIT_COLOR[unit.type] ?? COLORS.pesak;
   ctx.beginPath();
   ctx.arc(unit.x, drawY, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Hit flash overlay
   if (unit.state === "hit") {
     ctx.fillStyle = COLORS.hitFlash;
     ctx.beginPath();
@@ -212,7 +238,6 @@ function drawPlayerUnit(
     ctx.fill();
   }
 
-  // Emoji
   ctx.font = `${Math.round(14 * scale)}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -228,39 +253,61 @@ function drawEnemy(
   ctx: CanvasRenderingContext2D,
   enemy: Enemy,
   config: ArenaConfig,
+  sprites: ArenaSpriteManager,
 ): void {
   const perspective = config.perspective.slots[enemy.perspectiveSlot];
   const drawY = enemy.y + perspective.yOffset;
   const scale = perspective.scale;
-  const radius = BASE_UNIT_RADIUS * scale;
+  const size = BASE_UNIT_RADIUS * 2 * scale;
 
   ctx.save();
 
-  // Spawning: semi-transparent
-  if (enemy.state === "spawning") {
-    ctx.globalAlpha = 0.5;
-  }
-
-  // Dying: fade out
+  if (enemy.state === "spawning") ctx.globalAlpha = 0.5;
   if (enemy.state === "dying") {
-    const alpha = Math.max(0, enemy.animTimer / config.dyingDurationMs);
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.max(0, enemy.animTimer / config.dyingDurationMs);
   }
 
-  // Base circle
+  // Try sprite (enemies face left → flipX)
+  const spriteState = enemySpriteState(enemy.state);
+  let spriteTimer = globalTimer;
+  if (enemy.state === "spawning") spriteTimer = config.spawningDurationMs - enemy.animTimer;
+  else if (enemy.state === "hit") spriteTimer = config.hitFlashMs - enemy.animTimer;
+  else if (enemy.state === "dying") spriteTimer = config.dyingDurationMs - enemy.animTimer;
+
+  if (
+    sprites.hasSprite(enemy.spriteVariant) &&
+    sprites.draw(ctx, enemy.spriteVariant, spriteState, spriteTimer, enemy.x, drawY, size, size, true)
+  ) {
+    // Arrow overlay on top of sprite
+    if (enemy.state === "hit" && enemy.hitByArrow) {
+      const arrowElapsed = config.hitFlashMs - enemy.animTimer;
+      if (!sprites.hasSprite("arrow-hit") ||
+          !sprites.draw(ctx, "arrow-hit", "hit", arrowElapsed, enemy.x, drawY, size * 0.6, size * 0.6)) {
+        // Arrow fallback emoji
+        ctx.font = `${Math.round(10 * scale)}px sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🏹", enemy.x + size * 0.2, drawY - size * 0.15);
+      }
+    }
+    ctx.restore();
+    return;
+  }
+
+  // Fallback: colored circle + emoji
+  const radius = BASE_UNIT_RADIUS * scale;
+
   ctx.fillStyle = enemy.state === "spawning" ? COLORS.enemySpawning : COLORS.enemy;
   ctx.beginPath();
   ctx.arc(enemy.x, drawY, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Hit flash overlay
   if (enemy.state === "hit") {
     ctx.fillStyle = COLORS.hitFlash;
     ctx.beginPath();
     ctx.arc(enemy.x, drawY, radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // Arrow overlay for archer hits
     if (enemy.hitByArrow) {
       ctx.font = `${Math.round(10 * scale)}px sans-serif`;
       ctx.textAlign = "center";
@@ -270,12 +317,11 @@ function drawEnemy(
     }
   }
 
-  // Emoji
   ctx.font = `${Math.round(14 * scale)}px sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#fff";
-  ctx.fillText(UNIT_EMOJI.enemy, enemy.x, drawY);
+  ctx.fillText(ENEMY_EMOJI[enemy.spriteVariant] ?? "💀", enemy.x, drawY);
 
   ctx.restore();
 }

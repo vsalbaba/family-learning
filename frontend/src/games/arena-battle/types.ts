@@ -40,6 +40,7 @@ export interface PlayerUnit {
 
 export interface Enemy {
   id: EntityId;
+  spriteVariant: string; // "enemy-skeleton", "enemy-orc", "enemy-bat"
   x: number;
   y: number;
   hp: number;

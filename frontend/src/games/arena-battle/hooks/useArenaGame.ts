@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { ArenaConfig, ArenaViewState, Tier } from "../types";
 import { ArenaGameState } from "../game-state";
 import { createArenaGameLoop } from "../game-loop";
+import { createArenaSpriteManager, ARENA_SPRITE_PATHS } from "../sprite-manager";
+import type { ArenaSpriteManager } from "../sprite-manager";
 
 const INITIAL_VIEW: ArenaViewState = {
   remainingSeconds: 0,
@@ -24,6 +26,14 @@ export function useArenaGame(
   const [view, setView] = useState<ArenaViewState>(INITIAL_VIEW);
   const stateRef = useRef<ArenaGameState | null>(null);
   const loopRef = useRef<{ stop(): void } | null>(null);
+  const spritesRef = useRef<ArenaSpriteManager | null>(null);
+
+  // Load sprites once
+  useEffect(() => {
+    const sprites = createArenaSpriteManager();
+    spritesRef.current = sprites;
+    sprites.load(ARENA_SPRITE_PATHS);
+  }, []);
 
   // Init & start
   useEffect(() => {
@@ -33,18 +43,16 @@ export function useArenaGame(
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Set canvas resolution
     const dpr = window.devicePixelRatio || 1;
     canvas.width = config.boardWidthPx * dpr;
     canvas.height = config.boardHeightPx * dpr;
     ctx.scale(dpr, dpr);
 
-    // Create game state
     const state = new ArenaGameState(config);
     stateRef.current = state;
 
-    // Create game loop
-    const loop = createArenaGameLoop(state, ctx, setView);
+    const sprites = spritesRef.current ?? createArenaSpriteManager();
+    const loop = createArenaGameLoop(state, ctx, sprites, setView);
     loopRef.current = loop;
 
     loop.start();
@@ -82,7 +90,8 @@ export function useArenaGame(
     const state = new ArenaGameState(config);
     stateRef.current = state;
 
-    const loop = createArenaGameLoop(state, ctx, setView);
+    const sprites = spritesRef.current ?? createArenaSpriteManager();
+    const loop = createArenaGameLoop(state, ctx, sprites, setView);
     loopRef.current = loop;
 
     loop.start();

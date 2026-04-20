@@ -2239,6 +2239,16 @@ body {
   line-height: 1.6;
 }
 
+.arena-summary-reward {
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--color-success, #22c55e);
+}
+
+.arena-token-earned {
+  font-size: 1.1rem;
+}
+
 .arena-summary-actions {
   display: flex;
   gap: 0.75rem;

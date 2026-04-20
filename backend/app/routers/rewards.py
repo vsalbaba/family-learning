@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,12 @@ from app.routers.auth import require_child
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+PROGRESS_MAX = 100
+
+
+class ArenaResultBody(BaseModel):
+    correct_answers: int = Field(ge=0)
 
 
 @router.post("/activate-window")
@@ -53,4 +60,38 @@ def activate_window(
         "game_tokens": user.game_tokens,
         "window_expires_at": user.game_window_expires_at.isoformat(),
         "remaining_seconds": settings.game_window_seconds,
+    }
+
+
+@router.post("/arena-result")
+def submit_arena_result(
+    body: ArenaResultBody,
+    user: User = Depends(require_child),
+    db: Session = Depends(get_db),
+):
+    """Grant 1 % reward progress per correct answer from arena game."""
+    gained = body.correct_answers
+    if gained == 0:
+        return {
+            "progress_gained": 0,
+            "tokens_earned": 0,
+            "progress": user.reward_progress,
+            "game_tokens": user.game_tokens,
+        }
+
+    user.reward_progress += gained
+    tokens_earned = user.reward_progress // PROGRESS_MAX
+    user.reward_progress = user.reward_progress % PROGRESS_MAX
+    user.game_tokens += tokens_earned
+    db.commit()
+
+    logger.info(
+        "Arena result: user_id=%d correct=%d progress=%d tokens_earned=%d",
+        user.id, gained, user.reward_progress, tokens_earned,
+    )
+    return {
+        "progress_gained": gained,
+        "tokens_earned": tokens_earned,
+        "progress": user.reward_progress,
+        "game_tokens": user.game_tokens,
     }

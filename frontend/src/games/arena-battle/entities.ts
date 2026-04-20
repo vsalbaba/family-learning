@@ -7,6 +7,7 @@ import type {
   PlayerUnitType,
   SpellEffect,
 } from "./types";
+import { randomEnemyVariant } from "./sprite-manager";
 
 let nextId = 1;
 
@@ -60,6 +61,7 @@ export function createEnemy(config: ArenaConfig): Enemy {
   const stats = config.enemyStats;
   return {
     id: genId(),
+    spriteVariant: randomEnemyVariant(),
     x: config.boardWidthPx - config.castleWidthPx - 10,
     y: config.laneCenterY,
     hp: stats.hp,

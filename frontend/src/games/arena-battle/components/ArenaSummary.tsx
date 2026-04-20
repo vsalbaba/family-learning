@@ -1,19 +1,21 @@
+import type { ArenaResultResponse } from "../../../api/rewards";
 import type { ArenaSummary as ArenaSummaryData } from "../types";
 
 interface Props {
   summary: ArenaSummaryData;
-  canReplay: boolean;
+  reward: ArenaResultResponse | null;
   onReplay: () => void;
   onBack: () => void;
 }
 
 export default function ArenaSummary({
   summary,
-  canReplay,
+  reward,
   onReplay,
   onBack,
 }: Props) {
   const { stats } = summary;
+  const totalCorrect = stats.easyCorrect + stats.hardCorrect;
 
   return (
     <div className="arena-summary-overlay">
@@ -29,12 +31,20 @@ export default function ArenaSummary({
           <p>Zabito nepřátel: {stats.enemiesKilled}</p>
           <p>Vysláno jednotek: {stats.unitsSpawned}</p>
         </div>
+        {totalCorrect > 0 && (
+          <div className="arena-summary-reward">
+            <p>+{totalCorrect} % k odměně</p>
+            {reward?.tokens_earned ? (
+              <p className="arena-token-earned">
+                +{reward.tokens_earned} žeton{reward.tokens_earned > 1 ? "y" : ""}!
+              </p>
+            ) : null}
+          </div>
+        )}
         <div className="arena-summary-actions">
-          {canReplay && (
-            <button className="btn btn-primary" onClick={onReplay}>
-              Znovu
-            </button>
-          )}
+          <button className="btn btn-primary" onClick={onReplay}>
+            Znovu
+          </button>
           <button className="btn btn-secondary" onClick={onBack}>
             Zpět
           </button>
