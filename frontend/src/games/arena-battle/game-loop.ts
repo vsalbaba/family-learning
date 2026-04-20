@@ -3,6 +3,7 @@ import type { ArenaViewState } from "./types";
 import { render } from "./renderer";
 import { updateEnemySpawner } from "./systems/enemy-spawner";
 import { updateMovement } from "./systems/movement";
+import { updateCombat } from "./systems/combat";
 
 export interface ArenaGameLoop {
   start(): void;
@@ -39,8 +40,8 @@ export function createArenaGameLoop(
       // 3. Move all units
       updateMovement(state, dt);
 
-      // 4. Combat (M4)
-      // updateCombat(state, dt);
+      // 4. Combat
+      updateCombat(state, dt);
 
       // 5. Dying timers & cleanup
       tickDyingTimers(state, dt);
