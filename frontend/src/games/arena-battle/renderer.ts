@@ -48,10 +48,33 @@ const UNIT_COLOR: Record<string, string> = {
   obr: COLORS.obr,
 };
 
-const BASE_UNIT_RADIUS = 14;
+const BASE_UNIT_RADIUS = 42;
+
+/** Per-unit scale multiplier to compensate for different sprite densities. */
+const UNIT_SCALE: Record<string, number> = {
+  obr: 1.8,
+};
+
 const SLOT_ORDER: PerspectiveSlot[] = ["back", "mid", "front"];
 
 let globalTimer = 0;
+
+// ── Red tint overlay for hit state ──────────────────────────────────
+
+function drawRedTint(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+): void {
+  ctx.save();
+  ctx.globalAlpha = 0.45;
+  ctx.fillStyle = "#ff0000";
+  ctx.beginPath();
+  ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 // ── Main render ─────────────────────────────────────────────────────
 
@@ -77,17 +100,6 @@ export function render(
 function drawBackground(ctx: CanvasRenderingContext2D, config: ArenaConfig): void {
   ctx.fillStyle = COLORS.background;
   ctx.fillRect(0, 0, config.boardWidthPx, config.boardHeightPx);
-
-  ctx.strokeStyle = COLORS.laneLine;
-  ctx.lineWidth = 1;
-  const top = config.laneCenterY - 40;
-  const bottom = config.laneCenterY + 40;
-  ctx.beginPath();
-  ctx.moveTo(config.castleWidthPx, top);
-  ctx.lineTo(config.boardWidthPx - config.castleWidthPx, top);
-  ctx.moveTo(config.castleWidthPx, bottom);
-  ctx.lineTo(config.boardWidthPx - config.castleWidthPx, bottom);
-  ctx.stroke();
 }
 
 // ── Castles ─────────────────────────────────────────────────────────
@@ -199,7 +211,8 @@ function drawPlayerUnit(
 ): void {
   const perspective = config.perspective.slots[unit.perspectiveSlot];
   const drawY = unit.y + perspective.yOffset;
-  const scale = perspective.scale;
+  const unitScale = UNIT_SCALE[unit.type] ?? 1;
+  const scale = perspective.scale * unitScale;
   const size = BASE_UNIT_RADIUS * 2 * scale;
 
   ctx.save();
@@ -208,17 +221,20 @@ function drawPlayerUnit(
     ctx.globalAlpha = Math.max(0, unit.animTimer / config.dyingDurationMs);
   }
 
-  // Try sprite
-  const spriteState = playerSpriteState(unit.state);
+  // For hit state, render as walking + red tint overlay (no hit sprite needed)
+  const visualState = unit.state === "hit" ? "walking" : unit.state;
+  const spriteState = playerSpriteState(visualState);
   let spriteTimer = globalTimer;
-  if (unit.state === "hit") spriteTimer = config.hitFlashMs - unit.animTimer;
-  else if (unit.state === "dying") spriteTimer = config.dyingDurationMs - unit.animTimer;
+  if (unit.state === "dying") spriteTimer = config.dyingDurationMs - unit.animTimer;
   else if (unit.state === "attacking") spriteTimer = unit.attackCooldownMax - unit.attackCooldown;
 
   if (
     sprites.hasSprite(unit.type) &&
     sprites.draw(ctx, unit.type, spriteState, spriteTimer, unit.x, drawY, size, size)
   ) {
+    if (unit.state === "hit") {
+      drawRedTint(ctx, unit.x, drawY, size);
+    }
     ctx.restore();
     return;
   }
@@ -232,10 +248,7 @@ function drawPlayerUnit(
   ctx.fill();
 
   if (unit.state === "hit") {
-    ctx.fillStyle = COLORS.hitFlash;
-    ctx.beginPath();
-    ctx.arc(unit.x, drawY, radius, 0, Math.PI * 2);
-    ctx.fill();
+    drawRedTint(ctx, unit.x, drawY, radius * 2);
   }
 
   ctx.font = `${Math.round(14 * scale)}px sans-serif`;
@@ -267,27 +280,29 @@ function drawEnemy(
     ctx.globalAlpha = Math.max(0, enemy.animTimer / config.dyingDurationMs);
   }
 
-  // Try sprite (enemies face left → flipX)
-  const spriteState = enemySpriteState(enemy.state);
+  // For hit state, render as walking + red tint overlay
+  const visualState = enemy.state === "hit" ? "walking" : enemy.state;
+  const spriteState = enemySpriteState(visualState);
   let spriteTimer = globalTimer;
   if (enemy.state === "spawning") spriteTimer = config.spawningDurationMs - enemy.animTimer;
-  else if (enemy.state === "hit") spriteTimer = config.hitFlashMs - enemy.animTimer;
   else if (enemy.state === "dying") spriteTimer = config.dyingDurationMs - enemy.animTimer;
 
   if (
     sprites.hasSprite(enemy.spriteVariant) &&
     sprites.draw(ctx, enemy.spriteVariant, spriteState, spriteTimer, enemy.x, drawY, size, size, true)
   ) {
-    // Arrow overlay on top of sprite
-    if (enemy.state === "hit" && enemy.hitByArrow) {
-      const arrowElapsed = config.hitFlashMs - enemy.animTimer;
-      if (!sprites.hasSprite("arrow-hit") ||
-          !sprites.draw(ctx, "arrow-hit", "hit", arrowElapsed, enemy.x, drawY, size * 0.6, size * 0.6)) {
-        // Arrow fallback emoji
-        ctx.font = `${Math.round(10 * scale)}px sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("🏹", enemy.x + size * 0.2, drawY - size * 0.15);
+    if (enemy.state === "hit") {
+      drawRedTint(ctx, enemy.x, drawY, size);
+      // Arrow overlay
+      if (enemy.hitByArrow) {
+        const arrowElapsed = config.hitFlashMs - enemy.animTimer;
+        if (!sprites.hasSprite("arrow-hit") ||
+            !sprites.draw(ctx, "arrow-hit", "hit", arrowElapsed, enemy.x, drawY, size * 0.6, size * 0.6)) {
+          ctx.font = `${Math.round(10 * scale)}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("🏹", enemy.x + size * 0.2, drawY - size * 0.15);
+        }
       }
     }
     ctx.restore();
@@ -303,11 +318,7 @@ function drawEnemy(
   ctx.fill();
 
   if (enemy.state === "hit") {
-    ctx.fillStyle = COLORS.hitFlash;
-    ctx.beginPath();
-    ctx.arc(enemy.x, drawY, radius, 0, Math.PI * 2);
-    ctx.fill();
-
+    drawRedTint(ctx, enemy.x, drawY, radius * 2);
     if (enemy.hitByArrow) {
       ctx.font = `${Math.round(10 * scale)}px sans-serif`;
       ctx.textAlign = "center";

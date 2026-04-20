@@ -18,30 +18,30 @@ interface SheetDef {
 
 // ── Sheet definitions ───────────────────────────────────────────────
 
-/** Player units: 128×128 frames, 4 columns, 4 rows (walking/attacking/hit/dying) */
+/** Player units: 128×128 frames, 3 columns, 3 rows (walking/attacking/dying).
+ *  Hit is rendered as walking + red tint overlay in the renderer. */
 const PLAYER_SHEET: SheetDef = {
   frameW: 128,
   frameH: 128,
-  cols: 4,
+  cols: 3,
   states: {
-    "walking":   { row: 0, frames: 4, frameDurationMs: 150, loop: true },
+    "walking":   { row: 0, frames: 3, frameDurationMs: 150, loop: true },
     "attacking": { row: 1, frames: 3, frameDurationMs: 200, loop: false },
-    "hit":       { row: 2, frames: 2, frameDurationMs: 75,  loop: false },
-    "dying":     { row: 3, frames: 4, frameDurationMs: 100, loop: false },
+    "dying":     { row: 2, frames: 3, frameDurationMs: 100, loop: false },
   },
 };
 
-/** Enemies: 128×128 frames, 4 columns, 5 rows (spawning/walking/attacking/hit/dying) */
+/** Enemies: 128×128 frames, 3 columns, 3 rows (walking/attacking/dying).
+ *  Spawning uses walking at reduced alpha. Hit = walking + red tint. */
 const ENEMY_SHEET: SheetDef = {
   frameW: 128,
   frameH: 128,
-  cols: 4,
+  cols: 3,
   states: {
-    "spawning":  { row: 0, frames: 3, frameDurationMs: 70,  loop: false },
-    "walking":   { row: 1, frames: 4, frameDurationMs: 150, loop: true },
-    "attacking": { row: 2, frames: 3, frameDurationMs: 200, loop: false },
-    "hit":       { row: 3, frames: 2, frameDurationMs: 75,  loop: false },
-    "dying":     { row: 4, frames: 4, frameDurationMs: 100, loop: false },
+    "spawning":  { row: 0, frames: 3, frameDurationMs: 150, loop: true },
+    "walking":   { row: 0, frames: 3, frameDurationMs: 150, loop: true },
+    "attacking": { row: 1, frames: 3, frameDurationMs: 200, loop: false },
+    "dying":     { row: 2, frames: 3, frameDurationMs: 100, loop: false },
   },
 };
 
