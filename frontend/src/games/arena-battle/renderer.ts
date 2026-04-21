@@ -52,29 +52,27 @@ const BASE_UNIT_RADIUS = 42;
 
 /** Per-unit scale multiplier to compensate for different sprite densities. */
 const UNIT_SCALE: Record<string, number> = {
+  pesak: 1.3,
   obr: 1.8,
+  carodej: 0.75,
+  lucistnik: 0.75,
+};
+
+/** Per-enemy-variant scale multiplier. */
+const ENEMY_SCALE: Record<string, number> = {
+  "enemy-skeleton": 0.75,
+  "enemy-bat": 1,
+  "enemy-orc": 1,
+};
+
+const EFFECT_SIZE: Record<string, number> = {
+  spell: 96,
+  "arrow-hit": 48,
 };
 
 const SLOT_ORDER: PerspectiveSlot[] = ["back", "mid", "front"];
 
 let globalTimer = 0;
-
-// ── Red tint overlay for hit state ──────────────────────────────────
-
-function drawRedTint(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number,
-): void {
-  ctx.save();
-  ctx.globalAlpha = 0.45;
-  ctx.fillStyle = "#ff0000";
-  ctx.beginPath();
-  ctx.arc(x, y, size / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
 
 // ── Main render ─────────────────────────────────────────────────────
 
@@ -91,8 +89,8 @@ export function render(
 
   drawBackground(ctx, config);
   drawCastles(ctx, config);
-  drawSpellEffects(ctx, state, sprites);
-  drawEntitiesSorted(ctx, state, sprites);
+  drawEntitiesSorted(ctx, state, sprites);       // arrows render per-enemy inside sort order
+  drawSpellEffects(ctx, state, sprites);         // spells over everything
 }
 
 // ── Background ──────────────────────────────────────────────────────
@@ -130,7 +128,7 @@ function drawSpellEffects(
 ): void {
   for (const effect of state.spellEffects) {
     const elapsed = effect.duration - effect.timer;
-    const size = 48;
+    const size = EFFECT_SIZE.spell;
     if (
       sprites.hasSprite("spell") &&
       sprites.draw(ctx, "spell", "cast", elapsed, effect.x, effect.y, size, size)
@@ -233,7 +231,7 @@ function drawPlayerUnit(
     sprites.draw(ctx, unit.type, spriteState, spriteTimer, unit.x, drawY, size, size)
   ) {
     if (unit.state === "hit") {
-      drawRedTint(ctx, unit.x, drawY, size);
+
     }
     ctx.restore();
     return;
@@ -248,7 +246,7 @@ function drawPlayerUnit(
   ctx.fill();
 
   if (unit.state === "hit") {
-    drawRedTint(ctx, unit.x, drawY, radius * 2);
+
   }
 
   ctx.font = `${Math.round(14 * scale)}px sans-serif`;
@@ -270,7 +268,8 @@ function drawEnemy(
 ): void {
   const perspective = config.perspective.slots[enemy.perspectiveSlot];
   const drawY = enemy.y + perspective.yOffset;
-  const scale = perspective.scale;
+  const enemyScale = ENEMY_SCALE[enemy.spriteVariant] ?? 1;
+  const scale = perspective.scale * enemyScale;
   const size = BASE_UNIT_RADIUS * 2 * scale;
 
   ctx.save();
@@ -292,12 +291,12 @@ function drawEnemy(
     sprites.draw(ctx, enemy.spriteVariant, spriteState, spriteTimer, enemy.x, drawY, size, size, true)
   ) {
     if (enemy.state === "hit") {
-      drawRedTint(ctx, enemy.x, drawY, size);
+
       // Arrow overlay
       if (enemy.hitByArrow) {
         const arrowElapsed = config.hitFlashMs - enemy.animTimer;
         if (!sprites.hasSprite("arrow-hit") ||
-            !sprites.draw(ctx, "arrow-hit", "hit", arrowElapsed, enemy.x, drawY, size * 0.6, size * 0.6)) {
+            !sprites.draw(ctx, "arrow-hit", "hit", arrowElapsed, enemy.x, drawY, EFFECT_SIZE["arrow-hit"], EFFECT_SIZE["arrow-hit"])) {
           ctx.font = `${Math.round(10 * scale)}px sans-serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -318,7 +317,7 @@ function drawEnemy(
   ctx.fill();
 
   if (enemy.state === "hit") {
-    drawRedTint(ctx, enemy.x, drawY, radius * 2);
+
     if (enemy.hitByArrow) {
       ctx.font = `${Math.round(10 * scale)}px sans-serif`;
       ctx.textAlign = "center";
