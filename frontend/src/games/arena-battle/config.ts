@@ -136,8 +136,8 @@ export const DEFAULT_CONFIG: ArenaConfig = {
 
   // ── Question generation ─────────────────────────────────────────
   question: {
-    easySubtypeWeights: { small_mul: 60, add_no_carry: 40 },
-    hardSubtypeWeights: { large_mul: 50, add_carry: 50 },
+    easySubtypeWeights: { small_mul: 50, add_no_carry: 30, small_div: 20 },
+    hardSubtypeWeights: { large_mul: 40, add_carry: 35, large_div: 25 },
     recentHistorySize: 3,       // no repeated question key within last N
     maxSameSubtypeStreak: 2,    // force subtype switch after N in a row
     factor1Weight: 0.2,         // reduced probability for trivial 1×n

@@ -8,8 +8,8 @@ import {
 import type { QuestionConfig, MathQuestion } from "../types";
 
 const DEFAULT_CONFIG: QuestionConfig = {
-  easySubtypeWeights: { small_mul: 60, add_no_carry: 40 },
-  hardSubtypeWeights: { large_mul: 50, add_carry: 50 },
+  easySubtypeWeights: { small_mul: 50, add_no_carry: 30, small_div: 20 },
+  hardSubtypeWeights: { large_mul: 40, add_carry: 35, large_div: 25 },
   recentHistorySize: 3,
   maxSameSubtypeStreak: 2,
   factor1Weight: 0.2,
@@ -41,14 +41,14 @@ describe("TaskPair structure", () => {
   it("easy question has valid subtype", () => {
     const { pairs } = generate(20);
     for (const p of pairs) {
-      expect(["small_mul", "add_no_carry"]).toContain(p.easy.subtype);
+      expect(["small_mul", "add_no_carry", "small_div"]).toContain(p.easy.subtype);
     }
   });
 
   it("hard question has valid subtype", () => {
     const { pairs } = generate(20);
     for (const p of pairs) {
-      expect(["large_mul", "add_carry"]).toContain(p.hard.subtype);
+      expect(["large_mul", "add_carry", "large_div"]).toContain(p.hard.subtype);
     }
   });
 });
@@ -68,11 +68,11 @@ describe("Question keys", () => {
     }
   });
 
-  it("keys are stable identifiers starting with mul: or add:", () => {
+  it("keys are stable identifiers starting with mul:, add:, or div:", () => {
     const { pairs } = generate(20);
     for (const p of pairs) {
       for (const q of [p.easy, p.hard]) {
-        expect(q.key).toMatch(/^(mul|add):\d+:\d+$/);
+        expect(q.key).toMatch(/^(mul|add|div):\d+:\d+$/);
       }
     }
   });
@@ -100,6 +100,19 @@ describe("Correct answers", () => {
         if (q.key.startsWith("add:")) {
           const [, a, b] = q.key.split(":").map(Number);
           expect(q.correctAnswer).toBe(a + b);
+        }
+      }
+    }
+  });
+
+  it("division answers are correct", () => {
+    const { pairs } = generate(100);
+    for (const p of pairs) {
+      for (const q of [p.easy, p.hard]) {
+        if (q.key.startsWith("div:")) {
+          const [, product, divisor] = q.key.split(":").map(Number);
+          expect(q.correctAnswer).toBe(product / divisor);
+          expect(Number.isInteger(q.correctAnswer)).toBe(true);
         }
       }
     }
@@ -160,6 +173,17 @@ describe("Distractors", () => {
       }
     }
   });
+
+  it("division distractor is ±1 from correct", () => {
+    const { pairs } = generate(100);
+    for (const p of pairs) {
+      for (const q of [p.easy, p.hard]) {
+        if (!q.key.startsWith("div:")) continue;
+        const diff = Math.abs(q.wrongAnswer - q.correctAnswer);
+        expect(diff).toBe(1);
+      }
+    }
+  });
 });
 
 // ── Domain constraints ──────────────────────────────────────────────
@@ -213,6 +237,32 @@ describe("Domain constraints", () => {
       expect(a).toBeLessThanOrEqual(99);
     }
   });
+
+  it("small_div: factors in [2..5], result is integer", () => {
+    const { pairs } = generate(100);
+    for (const p of pairs) {
+      if (p.easy.subtype !== "small_div") continue;
+      const [, product, divisor] = p.easy.key.split(":").map(Number);
+      const answer = product / divisor;
+      expect(Number.isInteger(answer)).toBe(true);
+      expect(divisor).toBeGreaterThanOrEqual(2);
+      expect(divisor).toBeLessThanOrEqual(25); // max product 5*5
+      expect(answer).toBeGreaterThanOrEqual(2);
+      expect(answer).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it("large_div: a in [2..10], b in [5..10], result is integer", () => {
+    const { pairs } = generate(100);
+    for (const p of pairs) {
+      if (p.hard.subtype !== "large_div") continue;
+      const [, product, divisor] = p.hard.key.split(":").map(Number);
+      const answer = product / divisor;
+      expect(Number.isInteger(answer)).toBe(true);
+      expect(answer).toBeGreaterThanOrEqual(2);
+      expect(product).toBeLessThanOrEqual(100); // max 10*10
+    }
+  });
 });
 
 // ── Anti-repetition ─────────────────────────────────────────────────
@@ -254,18 +304,20 @@ describe("Anti-repetition", () => {
 // ── Subtype distribution ────────────────────────────────────────────
 
 describe("Subtype distribution", () => {
-  it("easy pool produces both subtypes", () => {
-    const { pairs } = generate(50);
+  it("easy pool produces all subtypes", () => {
+    const { pairs } = generate(100);
     const subtypes = new Set(pairs.map((p) => p.easy.subtype));
     expect(subtypes.has("small_mul")).toBe(true);
     expect(subtypes.has("add_no_carry")).toBe(true);
+    expect(subtypes.has("small_div")).toBe(true);
   });
 
-  it("hard pool produces both subtypes", () => {
-    const { pairs } = generate(50);
+  it("hard pool produces all subtypes", () => {
+    const { pairs } = generate(100);
     const subtypes = new Set(pairs.map((p) => p.hard.subtype));
     expect(subtypes.has("large_mul")).toBe(true);
     expect(subtypes.has("add_carry")).toBe(true);
+    expect(subtypes.has("large_div")).toBe(true);
   });
 });
 

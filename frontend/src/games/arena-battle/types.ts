@@ -69,8 +69,10 @@ export interface SpellEffect {
 export type QuestionSubtype =
   | "small_mul"
   | "add_no_carry"
+  | "small_div"
   | "large_mul"
-  | "add_carry";
+  | "add_carry"
+  | "large_div";
 
 export interface MathQuestion {
   key: string; // "mul:3:7" or "add:37:8"
@@ -121,8 +123,8 @@ export interface PerspectiveConfig {
 }
 
 export interface QuestionConfig {
-  easySubtypeWeights: { small_mul: number; add_no_carry: number };
-  hardSubtypeWeights: { large_mul: number; add_carry: number };
+  easySubtypeWeights: { small_mul: number; add_no_carry: number; small_div: number };
+  hardSubtypeWeights: { large_mul: number; add_carry: number; large_div: number };
   recentHistorySize: number;
   maxSameSubtypeStreak: number;
   factor1Weight: number; // weight for multiplication examples with factor 1 (0-1, lower = less frequent)
