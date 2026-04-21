@@ -1,6 +1,10 @@
 import json
 from pathlib import Path
 
+from app.models.package import Item
+from app.models.review import ReviewState
+from app.models.session import Answer, LearningSession
+
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
@@ -164,6 +168,65 @@ class TestDelete:
         )
         assert resp.status_code == 204
 
+    def test_delete_archived_package_with_answers(
+        self, client, db_session, auth_headers_parent, published_package, child_user,
+    ):
+        """Deleting an archived package must cascade-clean Answer, ReviewState, and unlink sessions."""
+        pkg = published_package
+        item = pkg.items[0]
+
+        # Create dependent records
+        session = LearningSession(
+            child_id=child_user.id,
+            package_id=pkg.id,
+            total_questions=1,
+            correct_count=1,
+            item_ids=json.dumps([item.id]),
+        )
+        db_session.add(session)
+        db_session.flush()
+
+        answer = Answer(
+            session_id=session.id,
+            item_id=item.id,
+            child_id=child_user.id,
+            given_answer='{"selected": 0}',
+            is_correct=True,
+        )
+        db_session.add(answer)
+
+        review = ReviewState(
+            child_id=child_user.id,
+            item_id=item.id,
+            status="learning",
+        )
+        db_session.add(review)
+        db_session.commit()
+
+        session_id = session.id
+        item_id = item.id
+
+        # Archive first (can't delete published)
+        resp = client.post(
+            f"/api/packages/{pkg.id}/archive", headers=auth_headers_parent,
+        )
+        assert resp.status_code == 200
+
+        # Delete
+        resp = client.delete(
+            f"/api/packages/{pkg.id}", headers=auth_headers_parent,
+        )
+        assert resp.status_code == 204
+
+        # Verify cleanup
+        assert db_session.query(Item).filter(Item.id == item_id).first() is None
+        assert db_session.query(Answer).filter(Answer.item_id == item_id).count() == 0
+        assert db_session.query(ReviewState).filter(ReviewState.item_id == item_id).count() == 0
+        # Session should still exist but with package_id unlinked
+        s = db_session.get(LearningSession, session_id)
+        assert s is not None
+        assert s.package_id is None
+
     def test_delete_published_blocked(
         self, client, auth_headers_parent, published_package
     ):
@@ -172,6 +235,59 @@ class TestDelete:
             headers=auth_headers_parent,
         )
         assert resp.status_code == 409
+
+
+class TestDeleteItem:
+    def test_delete_item_with_answers_and_review_state(
+        self, client, db_session, auth_headers_parent, published_package, child_user,
+    ):
+        """Deleting an item must cascade-delete Answer and ReviewState rows."""
+        item = published_package.items[0]
+
+        # Create a LearningSession + Answer referencing the item
+        session = LearningSession(
+            child_id=child_user.id,
+            package_id=published_package.id,
+            total_questions=1,
+            correct_count=1,
+            item_ids=json.dumps([item.id]),
+        )
+        db_session.add(session)
+        db_session.flush()
+
+        answer = Answer(
+            session_id=session.id,
+            item_id=item.id,
+            child_id=child_user.id,
+            given_answer='{"selected": 0}',
+            is_correct=True,
+        )
+        db_session.add(answer)
+
+        # Create a ReviewState referencing the item
+        review = ReviewState(
+            child_id=child_user.id,
+            item_id=item.id,
+            status="learning",
+        )
+        db_session.add(review)
+        db_session.commit()
+
+        # Verify dependent records exist
+        assert db_session.query(Answer).filter(Answer.item_id == item.id).count() == 1
+        assert db_session.query(ReviewState).filter(ReviewState.item_id == item.id).count() == 1
+
+        # Delete the item via API
+        resp = client.delete(
+            f"/api/packages/{published_package.id}/items/{item.id}",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 204
+
+        # Verify item and all dependent records are gone
+        assert db_session.query(Item).filter(Item.id == item.id).first() is None
+        assert db_session.query(Answer).filter(Answer.item_id == item.id).count() == 0
+        assert db_session.query(ReviewState).filter(ReviewState.item_id == item.id).count() == 0
 
 
 class TestExport:

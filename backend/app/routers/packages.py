@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.package import Item, Package
+from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import get_current_user, require_parent
@@ -315,6 +316,15 @@ def delete_package(
             status_code=status.HTTP_409_CONFLICT,
             detail="Nelze smazat publikovaný balíček. Nejprve jej archivujte.",
         )
+    # Clean up records referencing this package's items
+    item_ids = [item.id for item in pkg.items]
+    if item_ids:
+        db.query(Answer).filter(Answer.item_id.in_(item_ids)).delete()
+        db.query(ReviewState).filter(ReviewState.item_id.in_(item_ids)).delete()
+    # Unlink learning sessions (nullable FK)
+    db.query(LearningSession).filter(LearningSession.package_id == package_id).update(
+        {"package_id": None}
+    )
     db.delete(pkg)
     db.commit()
     logger.info("Package deleted: id=%d", package_id)
@@ -543,8 +553,9 @@ def delete_item(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Otázka nenalezena")
-    # Delete any answers referencing this item first
+    # Delete any records referencing this item first
     db.query(Answer).filter(Answer.item_id == item_id).delete()
+    db.query(ReviewState).filter(ReviewState.item_id == item_id).delete()
     db.delete(item)
     db.commit()
 
