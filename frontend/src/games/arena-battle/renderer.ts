@@ -87,36 +87,48 @@ export function render(
 
   ctx.clearRect(0, 0, config.boardWidthPx, config.boardHeightPx);
 
-  drawBackground(ctx, config);
-  drawCastles(ctx, config);
-  drawEntitiesSorted(ctx, state, sprites);       // arrows render per-enemy inside sort order
+  drawLane(ctx, config, sprites);                // lane under everything
+  drawEntitiesSorted(ctx, state, sprites);       // units over lane
+  drawCastles(ctx, config, sprites);             // castles over units (spawn effect)
   drawSpellEffects(ctx, state, sprites);         // spells over everything
 }
 
 // ── Background ──────────────────────────────────────────────────────
 
-function drawBackground(ctx: CanvasRenderingContext2D, config: ArenaConfig): void {
-  ctx.fillStyle = COLORS.background;
-  ctx.fillRect(0, 0, config.boardWidthPx, config.boardHeightPx);
+const LANE_Y_OFFSET = 30; // shift lane down so characters walk on the ground area
+
+function drawLane(
+  ctx: CanvasRenderingContext2D,
+  config: ArenaConfig,
+  sprites: ArenaSpriteManager,
+): void {
+  const h = config.boardHeightPx;
+
+  // Draw lane across full width (castles will overlay the edges)
+  if (!sprites.drawRaw(ctx, "lane", 0, LANE_Y_OFFSET, config.boardWidthPx, h)) {
+    ctx.fillStyle = COLORS.background;
+    ctx.fillRect(0, 0, config.boardWidthPx, h);
+  }
 }
 
-// ── Castles ─────────────────────────────────────────────────────────
-
-function drawCastles(ctx: CanvasRenderingContext2D, config: ArenaConfig): void {
-  const h = config.boardHeightPx;
+function drawCastles(
+  ctx: CanvasRenderingContext2D,
+  config: ArenaConfig,
+  sprites: ArenaSpriteManager,
+): void {
   const cw = config.castleWidthPx;
+  const h = config.boardHeightPx;
 
-  ctx.fillStyle = COLORS.playerCastle;
-  ctx.fillRect(0, 0, cw, h);
-  ctx.fillStyle = COLORS.playerCastleRoof;
-  ctx.fillRect(0, 0, cw, 12);
-  ctx.fillRect(0, h - 12, cw, 12);
+  // Castles drawn full size, overlapping the lane edges
+  if (!sprites.drawRaw(ctx, "castle-good", 0, 0, cw, h)) {
+    ctx.fillStyle = COLORS.playerCastle;
+    ctx.fillRect(0, 0, cw, h);
+  }
 
-  ctx.fillStyle = COLORS.enemyCastle;
-  ctx.fillRect(config.boardWidthPx - cw, 0, cw, h);
-  ctx.fillStyle = COLORS.enemyCastleRoof;
-  ctx.fillRect(config.boardWidthPx - cw, 0, cw, 12);
-  ctx.fillRect(config.boardWidthPx - cw, h - 12, cw, 12);
+  if (!sprites.drawRaw(ctx, "castle-evil", config.boardWidthPx - cw, 0, cw, h)) {
+    ctx.fillStyle = COLORS.enemyCastle;
+    ctx.fillRect(config.boardWidthPx - cw, 0, cw, h);
+  }
 }
 
 // ── Spell effects ───────────────────────────────────────────────────

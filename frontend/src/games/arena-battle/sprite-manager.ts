@@ -103,6 +103,14 @@ export interface ArenaSpriteManager {
     flipX?: boolean,
   ): boolean;
   hasSprite(entity: string): boolean;
+  drawRaw(
+    ctx: CanvasRenderingContext2D,
+    entity: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ): boolean;
 }
 
 export function createArenaSpriteManager(): ArenaSpriteManager {
@@ -128,7 +136,23 @@ export function createArenaSpriteManager(): ArenaSpriteManager {
     },
 
     hasSprite(entity: string): boolean {
-      return images.has(entity) && entity in SHEET_DEFS;
+      return images.has(entity);
+    },
+
+    drawRaw(
+      ctx: CanvasRenderingContext2D,
+      entity: string,
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+    ): boolean {
+      const img = images.get(entity);
+      if (!img) return false;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, x, y, w, h);
+      ctx.imageSmoothingEnabled = true;
+      return true;
     },
 
     draw(
@@ -192,6 +216,9 @@ export const ARENA_SPRITE_PATHS: Record<string, string> = {
   "enemy-bat": "/games/arena-battle/sprites/enemy-bat.png",
   "arrow-hit": "/games/arena-battle/sprites/arrow-hit.png",
   "spell": "/games/arena-battle/sprites/spell.png",
+  "castle-good": "/games/arena-battle/sprites/castle-good.png",
+  "castle-evil": "/games/arena-battle/sprites/castle-evil.png",
+  "lane": "/games/arena-battle/sprites/lane.png",
 };
 
 /** Map PlayerUnitState to sprite state key. */

@@ -31,8 +31,10 @@ export function updateMovement(state: ArenaGameState, dt: number): void {
       // Walk toward enemies (right)
       unit.state = "walking";
       unit.x += unit.speed * dtSec;
-      // Don't walk too close to the enemy castle — leave space for enemy spawns
-      const rightBound = state.config.boardWidthPx - state.config.castleWidthPx - 20;
+      // Ranged units stop at their attack range from the enemy castle
+      // Melee units stop just before the castle
+      const enemySpawnX = state.config.boardWidthPx - state.config.castleWidthPx - 10;
+      const rightBound = enemySpawnX - unit.attackRange;
       if (unit.x > rightBound) unit.x = rightBound;
     }
   }
