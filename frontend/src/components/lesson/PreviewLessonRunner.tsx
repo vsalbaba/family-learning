@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { PackageItem, ActivityType } from "../../types/package";
 import type { AnswerResponse } from "../../types/lesson";
-import { getPackage, getItemChildView, checkItemAnswer } from "../../api/packages";
+import { getPackage, getItemChildView, checkItemAnswer, updateItem, deleteItem } from "../../api/packages";
 import type { ChildViewItem } from "../../api/packages";
 import ProgressBar from "./ProgressBar";
 import QuestionCard from "./QuestionCard";
 import FeedbackOverlay from "./FeedbackOverlay";
+import ItemEditor from "../packages/ItemEditor";
 
-type State = "loading" | "answering" | "feedback" | "summary";
+type State = "loading" | "answering" | "feedback" | "editing" | "summary";
 
 interface AnswerRecord {
   question: string;
@@ -35,6 +36,7 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
   const [error, setError] = useState("");
   const [packageName, setPackageName] = useState("");
   const [ttsLang, setTtsLang] = useState<string | null>(null);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     loadItems();
@@ -113,6 +115,56 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
       await loadChildView(items[nextIdx]);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Neznámá chyba");
+    }
+  }
+
+  function handleEdit() {
+    setState("editing");
+  }
+
+  async function handleSaveEdit(data: Record<string, unknown>) {
+    const item = items[currentIndex];
+    setState("loading");
+    try {
+      const updated = await updateItem(packageId, item.id, data);
+      setItems(items.map((it) => (it.id === item.id ? updated : it)));
+      if (answers.length > currentIndex) {
+        setAnswers((prev) => { const c = [...prev]; c.splice(currentIndex, 1); return c; });
+      }
+      setFeedback(null);
+      setRevision((r) => r + 1);
+      await loadChildView(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Neznámá chyba");
+    }
+  }
+
+  function handleCancelEdit() {
+    setState("answering");
+  }
+
+  async function handleDeleteQuestion() {
+    const item = items[currentIndex];
+    if (!window.confirm(`Smazat otázku "${item.question}"?`)) return;
+    setState("loading");
+    try {
+      await deleteItem(packageId, item.id);
+      const newItems = items.filter((it) => it.id !== item.id);
+      if (answers.length > currentIndex) {
+        setAnswers((prev) => { const c = [...prev]; c.splice(currentIndex, 1); return c; });
+      }
+      if (newItems.length === 0) {
+        setItems(newItems);
+        setState("summary");
+        return;
+      }
+      setItems(newItems);
+      const nextIdx = currentIndex >= newItems.length ? newItems.length - 1 : currentIndex;
+      setCurrentIndex(nextIdx);
+      setFeedback(null);
+      await loadChildView(newItems[nextIdx]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Neznámá chyba");
     }
   }
 
@@ -195,9 +247,15 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
       {questionForCard && (
         <>
           <ProgressBar current={currentIndex} total={items.length} />
+          {(state === "answering" || state === "feedback") && (
+            <div className="preview-actions">
+              <button className="btn btn-small btn-secondary" onClick={handleEdit}>Upravit</button>
+              <button className="btn btn-small btn-danger" onClick={handleDeleteQuestion}>Smazat</button>
+            </div>
+          )}
           {state === "answering" && (
             <QuestionCard
-              key={currentItem.id}
+              key={`${currentItem.id}-${revision}`}
               question={questionForCard}
               onSubmit={handleAnswer}
             />
@@ -213,6 +271,14 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
               ttsLang={ttsLang}
               onContinue={handleContinue}
               reward={null}
+            />
+          )}
+          {state === "editing" && (
+            <ItemEditor
+              item={currentItem}
+              activityType={currentItem.activity_type as ActivityType}
+              onSave={handleSaveEdit}
+              onCancel={handleCancelEdit}
             />
           )}
         </>

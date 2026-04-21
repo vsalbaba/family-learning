@@ -1452,6 +1452,13 @@ body {
   margin-bottom: 1rem;
 }
 
+.preview-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
 /* ── Responsive ─────────────────────────── */
 
 @media (max-width: 600px) {
