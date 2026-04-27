@@ -26,6 +26,8 @@ export interface PackageSummary {
   item_count: number;
 }
 
+import type { QuestionImage } from "./lesson";
+
 export interface PackageItem {
   id: number;
   sort_order: number;
@@ -35,6 +37,7 @@ export interface PackageItem {
   hint: string | null;
   explanation: string | null;
   tags: string | null;
+  image: QuestionImage;
 }
 
 export interface PackageDetail extends PackageSummary {

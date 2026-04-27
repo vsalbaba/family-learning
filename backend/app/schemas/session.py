@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.schemas.package import ImageData
+
 
 class LessonStartRequest(BaseModel):
     package_id: int | None = None
@@ -25,6 +27,7 @@ class QuestionResponse(BaseModel):
     answer_data: str  # JSON — for child display (options, pairs, etc.)
     hint: str | None = None
     tts_lang: str | None = None
+    image: ImageData | None = None
 
 
 class AnswerRequest(BaseModel):

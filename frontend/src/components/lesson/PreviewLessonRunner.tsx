@@ -238,6 +238,7 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
         answer_data: childView.answer_data,
         hint: currentItem.hint,
         tts_lang: ttsLang,
+        image: currentItem.image,
       }
     : null;
 
@@ -271,6 +272,7 @@ export default function PreviewLessonRunner({ packageId, singleItemId }: Props) 
               ttsLang={ttsLang}
               onContinue={handleContinue}
               reward={null}
+              image={currentItem.image}
             />
           )}
           {state === "editing" && (

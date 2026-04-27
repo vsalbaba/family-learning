@@ -1,5 +1,6 @@
 import type { Question } from "../../types/lesson";
 import SpeakButton from "../common/SpeakButton";
+import QuestionImage from "./QuestionImage";
 import MultipleChoice from "../activities/MultipleChoice";
 import TrueFalse from "../activities/TrueFalse";
 import FillIn from "../activities/FillIn";
@@ -39,6 +40,9 @@ export default function QuestionCard({ question, onSubmit }: Props) {
 
   return (
     <div className="question-card">
+      {question.image?.type === "svg" && (
+        <QuestionImage image={question.image} />
+      )}
       <div className="question-header">
         <h2 className="question-text">{text}</h2>
         {tts_lang && <SpeakButton text={text} lang={tts_lang} />}

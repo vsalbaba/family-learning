@@ -58,12 +58,15 @@ export function deleteItem(packageId: number, itemId: number) {
   return del(`/packages/${packageId}/items/${itemId}`);
 }
 
+import type { QuestionImage } from "../types/lesson";
+
 export interface ChildViewItem {
   item_id: number;
   activity_type: string;
   question: string;
   answer_data: string;
   hint: string | null;
+  image: QuestionImage;
 }
 
 export function getItemChildView(packageId: number, itemId: number) {

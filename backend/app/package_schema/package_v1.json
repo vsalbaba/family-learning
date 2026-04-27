@@ -35,7 +35,17 @@
           "question": { "type": "string", "minLength": 1 },
           "hint": { "type": "string" },
           "explanation": { "type": "string" },
-          "tags": { "type": "array", "items": { "type": "string" } }
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "image": {
+            "type": "object",
+            "required": ["type", "svg"],
+            "additionalProperties": false,
+            "properties": {
+              "type": { "type": "string", "enum": ["svg"] },
+              "svg": { "type": "string", "minLength": 1, "maxLength": 102400 },
+              "alt": { "type": "string", "maxLength": 300 }
+            }
+          }
         },
         "allOf": [
           {

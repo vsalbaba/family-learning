@@ -12,6 +12,7 @@ from app.models.package import Item, Package
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import require_child
+from app.schemas.package import ImageData
 from app.schemas.session import (
     AnswerDetail,
     AnswerRequest,
@@ -41,6 +42,9 @@ def _item_to_question(
     item: Item, index: int, total: int, tts_lang: str | None = None
 ) -> QuestionResponse:
     """Build a QuestionResponse from an Item for the child-facing API."""
+    image = None
+    if item.image_svg:
+        image = ImageData(type="svg", svg=item.image_svg, alt=item.image_alt)
     return QuestionResponse(
         item_id=item.id,
         question_index=index,
@@ -50,6 +54,7 @@ def _item_to_question(
         answer_data=get_child_answer_data(item),
         hint=item.hint,
         tts_lang=tts_lang,
+        image=image,
     )
 
 

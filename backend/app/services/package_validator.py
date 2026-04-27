@@ -6,6 +6,8 @@ from pathlib import Path
 
 import jsonschema
 
+from app.services.svg_validator import validate_svg
+
 SCHEMA_PATH = Path(__file__).parent.parent / "package_schema" / "package_v1.json"
 VALID_TYPES = {
     "flashcard", "multiple_choice", "true_false",
@@ -197,6 +199,15 @@ def _validate_semantics(result: ValidationResult, data: dict):
             answers = item.get("accepted_answers", [])
             if isinstance(answers, list) and len(answers) == 1:
                 _add_warning(result, "W011", "fill_in has only 1 accepted answer", f"{path}.accepted_answers")
+
+        # E018: invalid SVG image
+        image = item.get("image")
+        if isinstance(image, dict) and image.get("svg"):
+            svg_errors = validate_svg(image["svg"])
+            for svg_err in svg_errors:
+                _add_error(result, "E018", svg_err, f"{path}.image.svg")
+            if not image.get("alt"):
+                _add_warning(result, "W012", "Image missing 'alt' text for accessibility", f"{path}.image")
 
     # Package-level warnings
     if len(items) < 5:

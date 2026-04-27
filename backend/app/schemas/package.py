@@ -1,6 +1,12 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, computed_field
+
+
+class ImageData(BaseModel):
+    type: str = "svg"
+    svg: str
+    alt: str | None = None
 
 
 class ValidationError(BaseModel):
@@ -25,8 +31,17 @@ class ItemResponse(BaseModel):
     hint: str | None = None
     explanation: str | None = None
     tags: str | None = None
+    image_svg: str | None = Field(default=None, exclude=True)
+    image_alt: str | None = Field(default=None, exclude=True)
 
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def image(self) -> ImageData | None:
+        if self.image_svg:
+            return ImageData(type="svg", svg=self.image_svg, alt=self.image_alt)
+        return None
 
 
 class PackageResponse(BaseModel):
@@ -71,6 +86,7 @@ class ItemUpdateRequest(BaseModel):
     hint: str | None = None
     explanation: str | None = None
     tags: str | None = None
+    image: ImageData | None = None
 
 
 class ItemCreateRequest(BaseModel):
@@ -80,6 +96,7 @@ class ItemCreateRequest(BaseModel):
     hint: str | None = None
     explanation: str | None = None
     tags: str | None = None
+    image: ImageData | None = None
 
 
 class PackageImportRequest(BaseModel):

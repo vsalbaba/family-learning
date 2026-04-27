@@ -29,6 +29,7 @@ from app.schemas.package import (
 from app.schemas.session import AnswerRequest
 from app.services.lesson_engine import check_answer, get_child_answer_data, get_correct_answer_display
 from app.services.package_validator import validate_package
+from app.services.svg_validator import validate_svg
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,13 @@ def _import_package(
         activity_type = item_data["type"]
         answer_data = _extract_answer_data(activity_type, item_data)
 
+        image_data = item_data.get("image")
+        image_svg = None
+        image_alt = None
+        if image_data:
+            image_svg = image_data["svg"]
+            image_alt = image_data.get("alt")
+
         item = Item(
             package_id=pkg.id,
             sort_order=i,
@@ -132,6 +140,8 @@ def _import_package(
             hint=item_data.get("hint"),
             explanation=item_data.get("explanation"),
             tags=json.dumps(item_data.get("tags", [])),
+            image_svg=image_svg,
+            image_alt=image_alt,
         )
         db.add(item)
 
@@ -429,6 +439,11 @@ def export_package(
             item_dict["explanation"] = item.explanation
         if item.tags:
             item_dict["tags"] = json.loads(item.tags)
+        if item.image_svg:
+            image_obj: dict = {"type": "svg", "svg": item.image_svg}
+            if item.image_alt:
+                image_obj["alt"] = item.image_alt
+            item_dict["image"] = image_obj
         items_out.append(item_dict)
     metadata = {
         "name": pkg.name,
@@ -497,9 +512,20 @@ def update_item(
         item.explanation = req.explanation
     if req.tags is not None:
         item.tags = req.tags
+    raw_body = req.model_fields_set
+    if "image" in raw_body:
+        if req.image is None:
+            item.image_svg = None
+            item.image_alt = None
+        else:
+            svg_errors = validate_svg(req.image.svg)
+            if svg_errors:
+                raise HTTPException(status_code=400, detail="; ".join(svg_errors))
+            item.image_svg = req.image.svg
+            item.image_alt = req.image.alt
     db.commit()
     db.refresh(item)
-    return item
+    return ItemResponse.model_validate(item)
 
 
 @router.post("/{package_id}/items", response_model=ItemResponse, status_code=201)
@@ -522,6 +548,14 @@ def create_item(
         .first()
     )
     next_order = (max_order[0] + 1) if max_order else 0
+    image_svg = None
+    image_alt = None
+    if req.image:
+        svg_errors = validate_svg(req.image.svg)
+        if svg_errors:
+            raise HTTPException(status_code=400, detail="; ".join(svg_errors))
+        image_svg = req.image.svg
+        image_alt = req.image.alt
     item = Item(
         package_id=package_id,
         sort_order=next_order,
@@ -531,11 +565,13 @@ def create_item(
         hint=req.hint,
         explanation=req.explanation,
         tags=req.tags,
+        image_svg=image_svg,
+        image_alt=image_alt,
     )
     db.add(item)
     db.commit()
     db.refresh(item)
-    return item
+    return ItemResponse.model_validate(item)
 
 
 @router.delete("/{package_id}/items/{item_id}", status_code=204)
@@ -607,4 +643,5 @@ def get_item_child_view(
         "question": item.question,
         "answer_data": get_child_answer_data(item),
         "hint": item.hint,
+        "image": {"type": "svg", "svg": item.image_svg, "alt": item.image_alt} if item.image_svg else None,
     }

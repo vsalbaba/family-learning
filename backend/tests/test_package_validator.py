@@ -274,3 +274,71 @@ class TestPositive:
         assert not result.is_valid
         # Should report both missing name and empty items
         assert len(result.hard_errors) >= 2
+
+
+# ── Image validation ────────────────────────────────────────────
+
+
+VALID_SVG = '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>'
+
+
+class TestImageValidation:
+    def test_package_with_valid_image_passes(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "hint": "h", "explanation": "e",
+            "image": {"type": "svg", "svg": VALID_SVG, "alt": "A circle"},
+        }])
+        result = validate_package(raw)
+        assert result.is_valid
+
+    def test_package_without_image_still_passes(self):
+        raw = _pkg()
+        result = validate_package(raw)
+        assert result.is_valid
+
+    def test_invalid_svg_blocks_import(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "hint": "h", "explanation": "e",
+            "image": {"type": "svg", "svg": "<script>alert(1)</script>"},
+        }])
+        result = validate_package(raw)
+        assert not result.is_valid
+        assert any(e.code == "E018" for e in result.hard_errors)
+
+    def test_missing_alt_generates_warning(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "hint": "h", "explanation": "e",
+            "image": {"type": "svg", "svg": VALID_SVG},
+        }])
+        result = validate_package(raw)
+        assert result.is_valid
+        assert any(e.code == "W012" for e in result.soft_warnings)
+
+    def test_image_with_alt_no_w012(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "hint": "h", "explanation": "e",
+            "image": {"type": "svg", "svg": VALID_SVG, "alt": "desc"},
+        }])
+        result = validate_package(raw)
+        assert result.is_valid
+        assert not any(e.code == "W012" for e in result.soft_warnings)
+
+    def test_image_schema_rejects_extra_fields(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "image": {"type": "svg", "svg": VALID_SVG, "extra": "bad"},
+        }])
+        result = validate_package(raw)
+        assert not result.is_valid
+
+    def test_image_schema_rejects_missing_svg(self):
+        raw = _pkg(items=[{
+            "type": "true_false", "question": "Q", "correct": True,
+            "image": {"type": "svg"},
+        }])
+        result = validate_package(raw)
+        assert not result.is_valid

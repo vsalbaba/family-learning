@@ -178,6 +178,7 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
               ttsLang={question.tts_lang}
               onContinue={handleContinue}
               reward={feedback.reward}
+              image={question.image}
             />
           )}
         </>

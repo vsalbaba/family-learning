@@ -1,6 +1,7 @@
 import type { ActivityType } from "../../types/package";
-import type { RewardInfo } from "../../types/lesson";
+import type { QuestionImage as QuestionImageType, RewardInfo } from "../../types/lesson";
 import SpeakButton from "../common/SpeakButton";
+import QuestionImage from "./QuestionImage";
 import RewardFeedback from "./RewardFeedback";
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
   ttsLang: string | null;
   onContinue: () => void;
   reward: RewardInfo | null;
+  image?: QuestionImageType;
 }
 
 function formatAnswer(json: string, activityType: ActivityType, isGiven: boolean): string {
@@ -70,6 +72,7 @@ export default function FeedbackOverlay({
   ttsLang,
   onContinue,
   reward,
+  image,
 }: Props) {
   const correctDisplay = formatAnswer(correctAnswer, activityType, false);
   const givenDisplay = formatAnswer(givenAnswer, activityType, true);
@@ -84,6 +87,7 @@ export default function FeedbackOverlay({
           {ttsLang && <SpeakButton text={givenDisplay} lang={ttsLang} />}
         </p>
       )}
+      {image?.type === "svg" && <QuestionImage image={image} compact />}
       <p className="feedback-question">
         {questionText}
         {ttsLang && <SpeakButton text={questionText} lang={ttsLang} />}

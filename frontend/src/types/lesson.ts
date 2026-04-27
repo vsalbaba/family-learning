@@ -1,5 +1,11 @@
 import type { ActivityType } from "./package";
 
+export type QuestionImage = {
+  type: "svg";
+  svg: string;
+  alt?: string | null;
+} | null;
+
 export interface Question {
   item_id: number;
   question_index: number;
@@ -9,6 +15,7 @@ export interface Question {
   answer_data: string;
   hint: string | null;
   tts_lang: string | null;
+  image: QuestionImage;
 }
 
 export interface RewardInfo {

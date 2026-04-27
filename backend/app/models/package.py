@@ -56,6 +56,8 @@ class Item(Base):
     hint: Mapped[str | None] = mapped_column(Text, nullable=True)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array
+    image_svg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_alt: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()
     )
