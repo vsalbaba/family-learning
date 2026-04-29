@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { listPackages } from "../api/packages";
 import { activateWindow } from "../api/rewards";
+import { getAllGameProgress } from "../api/gameProgress";
+import type { GameKey, GameProgress } from "../api/gameProgress";
 import type { PackageSummary } from "../types/package";
 import SubjectGrid from "../components/packages/SubjectGrid";
 import PackageList from "../components/packages/PackageList";
@@ -15,6 +17,7 @@ export default function ChildHome() {
   const [packages, setPackages] = useState<PackageSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [progressMap, setProgressMap] = useState<Partial<Record<GameKey, GameProgress>>>({});
 
   const { isActive: windowActive } = useGameWindow();
   const tokens = user?.game_tokens ?? 0;
@@ -23,6 +26,13 @@ export default function ChildHome() {
     listPackages()
       .then(setPackages)
       .finally(() => setLoading(false));
+    getAllGameProgress()
+      .then((list) => {
+        const map: Partial<Record<GameKey, GameProgress>> = {};
+        for (const p of list) map[p.gameKey] = p;
+        setProgressMap(map);
+      })
+      .catch(() => {});
   }, []);
 
   async function playGame(path: string) {
@@ -71,6 +81,9 @@ export default function ChildHome() {
                 onClick={() => playGame("/games/hero-walk")}
               >
                 <span>HeroWalk</span>
+                {typeof progressMap["hero-walk"]?.summary?.label === "string" && (
+                  <span className="game-btn-level">{progressMap["hero-walk"].summary.label}</span>
+                )}
                 {!windowActive && (
                   <span className="game-btn-cost">
                     <TokenIcon size={14} />1
@@ -83,6 +96,9 @@ export default function ChildHome() {
                 onClick={() => playGame("/games/farmageddon")}
               >
                 <span>Farmageddon</span>
+                {typeof progressMap["farmageddon"]?.summary?.label === "string" && (
+                  <span className="game-btn-level">{progressMap["farmageddon"].summary.label}</span>
+                )}
                 {!windowActive && (
                   <span className="game-btn-cost">
                     <TokenIcon size={14} />1
@@ -94,6 +110,9 @@ export default function ChildHome() {
                 onClick={() => navigate("/games/arena-battle")}
               >
                 <span>Aréna</span>
+                {typeof progressMap["arena-battle"]?.summary?.label === "string" && (
+                  <span className="game-btn-level">{progressMap["arena-battle"].summary.label}</span>
+                )}
               </button>
             </div>
           </div>

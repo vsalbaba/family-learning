@@ -1885,6 +1885,12 @@ body {
   gap: 0.5rem;
 }
 
+.game-btn-level {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
 .game-btn-cost {
   display: inline-flex;
   align-items: center;

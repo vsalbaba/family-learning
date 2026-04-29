@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Command, GameMap, HeroState, Enemy, SimulationResult } from "./types";
 import { MAX_COMMANDS, STEP_DELAY_MS, RESULT_DELAY_MS } from "./constants";
 import { simulate } from "./engine";
 import { generateMap } from "./mapgen";
+import { getGameProgress, updateGameProgress } from "../../api/gameProgress";
 import { useGameWindow } from "../../hooks/useGameWindow";
 import Grid from "./Grid";
 import CommandPlan from "./CommandPlan";
@@ -36,6 +37,34 @@ export default function HeroWalkGame() {
 
   const animRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const progressSubmittedRef = useRef(false);
+  const currentXpRef = useRef(0);
+
+  useEffect(() => {
+    getGameProgress("hero-walk").then((p) => { currentXpRef.current = p.xp; }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (gameState !== "finished" || !result || progressSubmittedRef.current) return;
+    if (result.outcome !== "win") return;
+    progressSubmittedRef.current = true;
+    const xpDelta = 20 + (result.treasureCollected ? 10 : 0);
+    const newXp = currentXpRef.current + xpDelta;
+    const level = heroWalkLevel(newXp);
+    updateGameProgress("hero-walk", {
+      xpDelta,
+      dataPatch: {
+        lastOutcome: result.outcome,
+        treasureCollected: result.treasureCollected,
+      },
+      summary: {
+        level,
+        label: `Mapa ${level || 1}`,
+        progressText: `${newXp} XP`,
+        progressPercent: Math.round(((newXp % 100) / 100) * 100),
+      },
+    }).catch(() => {});
+  }, [gameState, result]);
 
   function clearAllTimers() {
     if (animRef.current) clearTimeout(animRef.current);
@@ -51,6 +80,7 @@ export default function HeroWalkGame() {
 
   function resetToMap(m: GameMap) {
     clearAllTimers();
+    progressSubmittedRef.current = false;
     setMap(m);
     setPlan([]);
     setGameState("planning");
@@ -238,4 +268,8 @@ export default function HeroWalkGame() {
       </button>
     </div>
   );
+}
+
+function heroWalkLevel(xp: number): number {
+  return Math.floor(xp / 100);
 }

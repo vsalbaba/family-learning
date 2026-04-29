@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { GameConfig, WaveConfig } from "../types";
 import { DEFAULT_CONFIG, FALLBACK_WAVES } from "../config";
 import { getWaveConfig } from "../../../api/farmageddon";
+import { getGameProgress, updateGameProgress } from "../../../api/gameProgress";
 import { useGameLoop } from "../hooks/useGameLoop";
 import { useGameWindow } from "../../../hooks/useGameWindow";
 import GameBoard from "./GameBoard";
@@ -44,6 +45,10 @@ export default function FarmageddonGame() {
 }
 
 /** Inner component that only mounts once config is available. */
+function farmageddonLevel(xp: number): number {
+  return Math.floor(xp / 80);
+}
+
 function FarmageddonBoard({
   config,
   canvasRef,
@@ -55,6 +60,37 @@ function FarmageddonBoard({
 }) {
   const { view, setToolMode, restart } = useGameLoop(canvasRef, config);
   const { isActive: canReplay } = useGameWindow();
+  const submittedRef = useRef(false);
+  const currentXpRef = useRef(0);
+
+  useEffect(() => {
+    getGameProgress("farmageddon").then((p) => { currentXpRef.current = p.xp; }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!view.summary || submittedRef.current) return;
+    submittedRef.current = true;
+    const s = view.summary;
+    const xpDelta = s.goblinsKilled * 3 + s.wavesCompleted * 10 + (s.result === "won" ? 50 : 0);
+    if (xpDelta > 0) {
+      const newXp = currentXpRef.current + xpDelta;
+      const level = farmageddonLevel(newXp);
+      updateGameProgress("farmageddon", {
+        xpDelta,
+        dataPatch: {
+          lastResult: s.result,
+          bestWave: s.wavesCompleted,
+          goblinsKilled: s.goblinsKilled,
+        },
+        summary: {
+          level,
+          label: `Lvl ${level || 1}`,
+          progressText: `${newXp} XP`,
+          progressPercent: Math.round(((newXp % 80) / 80) * 100),
+        },
+      }).catch(() => {});
+    }
+  }, [view.summary]);
 
   return (
     <div className="fg-game">
@@ -75,7 +111,7 @@ function FarmageddonBoard({
       {view.summary && (
         <GameSummary
           summary={view.summary}
-          onRetry={restart}
+          onRetry={() => { submittedRef.current = false; restart(); }}
           onBack={() => navigate("/")}
           canReplay={canReplay}
         />
