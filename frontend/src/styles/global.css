@@ -2300,6 +2300,12 @@ body {
   border-color: var(--color-danger);
 }
 
+.arena-task-card--penalty {
+  opacity: 0.45;
+  border-color: var(--color-danger);
+  pointer-events: none;
+}
+
 .arena-task-tier {
   font-size: 1.25rem;
   margin-bottom: 0.25rem;

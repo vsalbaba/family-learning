@@ -7,6 +7,8 @@ import {
   type QuestionHistory,
 } from "../question-gen";
 
+const PENALTY_DURATIONS_MS = [500, 1000, 2000, 4000] as const;
+
 interface Props {
   config: QuestionConfig;
   gameActive: boolean;
@@ -29,13 +31,22 @@ export default function QuestionPanel({ config, gameActive, onAnswer }: Props) {
   });
   const [feedback, setFeedback] = useState<FeedbackState>(null);
   const [correctSide, setCorrectSide] = useState(() => randomSides());
+  const [penaltyLevel, setPenaltyLevel] = useState(0);
+  const [penaltyActive, setPenaltyActive] = useState(false);
+  const consecutiveCorrectRef = useRef(0);
+  const penaltyTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Cleanup feedback timer on unmount
   useEffect(() => {
     return () => {
       if (feedback?.timer) clearTimeout(feedback.timer);
     };
   }, [feedback]);
+
+  useEffect(() => {
+    return () => {
+      if (penaltyTimerRef.current) clearTimeout(penaltyTimerRef.current);
+    };
+  }, []);
 
   const advancePair = useCallback(() => {
     const newPair = generateTaskPair(easyHistRef.current, hardHistRef.current, config);
@@ -45,7 +56,7 @@ export default function QuestionPanel({ config, gameActive, onAnswer }: Props) {
 
   const handleClick = useCallback(
     (tier: Tier, answeredCorrectly: boolean) => {
-      if (!gameActive || feedback) return;
+      if (!gameActive || feedback || penaltyActive) return;
 
       const question = tier === "easy" ? pair.easy : pair.hard;
       pushHistory(
@@ -56,18 +67,38 @@ export default function QuestionPanel({ config, gameActive, onAnswer }: Props) {
 
       onAnswer(tier, answeredCorrectly);
 
-      const feedbackDuration = answeredCorrectly ? 200 : 300;
-      const timer = setTimeout(() => {
-        setFeedback(null);
-        advancePair();
-      }, feedbackDuration);
-
-      setFeedback({ tier, correct: answeredCorrectly, timer });
+      if (answeredCorrectly) {
+        consecutiveCorrectRef.current += 1;
+        if (consecutiveCorrectRef.current >= 2) {
+          setPenaltyLevel((prev) => Math.max(0, prev - 1));
+          consecutiveCorrectRef.current = 0;
+        }
+        const timer = setTimeout(() => {
+          setFeedback(null);
+          advancePair();
+        }, 200);
+        setFeedback({ tier, correct: true, timer });
+      } else {
+        const currentLevel = penaltyLevel;
+        consecutiveCorrectRef.current = 0;
+        const timer = setTimeout(() => {
+          setFeedback(null);
+          setPenaltyActive(true);
+          penaltyTimerRef.current = setTimeout(() => {
+            setPenaltyActive(false);
+            setPenaltyLevel((prev) => Math.min(3, prev + 1));
+            advancePair();
+          }, PENALTY_DURATIONS_MS[currentLevel]);
+        }, 300);
+        setFeedback({ tier, correct: false, timer });
+      }
     },
-    [gameActive, feedback, pair, config, onAnswer, advancePair],
+    [gameActive, feedback, penaltyActive, pair, config, penaltyLevel, onAnswer, advancePair],
   );
 
   if (!gameActive) return null;
+
+  const locked = feedback !== null || penaltyActive;
 
   return (
     <div className="arena-questions">
@@ -76,7 +107,8 @@ export default function QuestionPanel({ config, gameActive, onAnswer }: Props) {
         tier="easy"
         correctSide={correctSide.easy}
         feedback={feedback?.tier === "easy" ? feedback : null}
-        disabled={feedback !== null}
+        disabled={locked}
+        penaltyActive={penaltyActive}
         onAnswer={(correct) => handleClick("easy", correct)}
       />
       <TaskCard
@@ -84,7 +116,8 @@ export default function QuestionPanel({ config, gameActive, onAnswer }: Props) {
         tier="hard"
         correctSide={correctSide.hard}
         feedback={feedback?.tier === "hard" ? feedback : null}
-        disabled={feedback !== null}
+        disabled={locked}
+        penaltyActive={penaltyActive}
         onAnswer={(correct) => handleClick("hard", correct)}
       />
     </div>
@@ -106,6 +139,7 @@ interface TaskCardProps {
   correctSide: "left" | "right";
   feedback: FeedbackState;
   disabled: boolean;
+  penaltyActive: boolean;
   onAnswer: (correct: boolean) => void;
 }
 
@@ -115,6 +149,7 @@ function TaskCard({
   correctSide,
   feedback,
   disabled,
+  penaltyActive,
   onAnswer,
 }: TaskCardProps) {
   const leftAnswer =
@@ -123,7 +158,9 @@ function TaskCard({
     correctSide === "right" ? question.correctAnswer : question.wrongAnswer;
 
   let cardClass = `arena-task-card arena-task-card--${tier}`;
-  if (feedback) {
+  if (penaltyActive) {
+    cardClass += " arena-task-card--penalty";
+  } else if (feedback) {
     cardClass += feedback.correct
       ? " arena-task-card--correct"
       : " arena-task-card--wrong";
