@@ -8,7 +8,7 @@ from app.services.spaced_repetition import update_review
 
 def _fresh_state() -> ReviewState:
     return ReviewState(
-        child_id=1, item_id=1, status="new",
+        child_id=1, item_id=1, status="learning",
         ease_factor=2.5, interval_days=0, repetitions=0,
     )
 
@@ -19,7 +19,7 @@ class TestCorrectAnswers:
         update_review(state, True)
         assert state.interval_days == 1
         assert state.repetitions == 1
-        assert state.status == "new"  # not yet learning threshold
+        assert state.status == "learning"
 
     def test_second_correct_interval_3(self):
         state = _fresh_state()
@@ -48,14 +48,14 @@ class TestCorrectAnswers:
 
 
 class TestWrongAnswers:
-    def test_wrong_resets_to_learning(self):
+    def test_wrong_resets_to_review(self):
         state = _fresh_state()
         update_review(state, True)
         update_review(state, True)
         update_review(state, False)
         assert state.repetitions == 0
         assert state.interval_days == 0
-        assert state.status == "learning"
+        assert state.status == "review"
 
     def test_wrong_from_known_resets(self):
         state = _fresh_state()
@@ -63,7 +63,7 @@ class TestWrongAnswers:
             update_review(state, True)
         assert state.status == "known"
         update_review(state, False)
-        assert state.status == "learning"
+        assert state.status == "review"
         assert state.repetitions == 0
 
 

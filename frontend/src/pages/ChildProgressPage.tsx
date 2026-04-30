@@ -80,7 +80,11 @@ export default function ChildProgressPage() {
               </thead>
               <tbody>
                 {progress.packages.map((p) => (
-                  <tr key={p.package_id}>
+                  <tr
+                    key={p.package_id}
+                    className="progress-table-row--clickable"
+                    onClick={() => navigate(`/children/${childId}/progress/package/${p.package_id}`)}
+                  >
                     <td>{p.package_name}</td>
                     <td>{p.subject || "—"}</td>
                     <td>{p.session_count}</td>
@@ -117,7 +121,11 @@ export default function ChildProgressPage() {
                   </thead>
                   <tbody>
                     {progress.subject_progress.map((s) => (
-                      <tr key={s.subject}>
+                      <tr
+                        key={s.subject}
+                        className="progress-table-row--clickable"
+                        onClick={() => navigate(`/children/${childId}/progress/subject/${encodeURIComponent(s.subject)}`)}
+                      >
                         <td>{s.subject}</td>
                         <td>{s.session_count}</td>
                         <td>

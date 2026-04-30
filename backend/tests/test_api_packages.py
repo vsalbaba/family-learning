@@ -198,7 +198,7 @@ class TestDelete:
         review = ReviewState(
             child_id=child_user.id,
             item_id=item.id,
-            status="learning",
+            status="review",
         )
         db_session.add(review)
         db_session.commit()
@@ -268,7 +268,7 @@ class TestDeleteItem:
         review = ReviewState(
             child_id=child_user.id,
             item_id=item.id,
-            status="learning",
+            status="review",
         )
         db_session.add(review)
         db_session.commit()

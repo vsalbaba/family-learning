@@ -74,3 +74,46 @@ export interface ChildProgress {
 export function getChildProgress(childId: number) {
   return get<ChildProgress>(`/children/${childId}/progress`);
 }
+
+export interface ProgressDetailItem {
+  item_id: number;
+  package_id: number;
+  package_name: string;
+  question: string;
+  activity_type: string;
+  answer_count: number;
+  correct_count: number;
+  wrong_count: number;
+  mastery: "unknown" | "learning" | "known" | "review";
+  last_answered_at: string | null;
+}
+
+export interface ProgressDetailWrongAnswer {
+  item_id: number;
+  package_id: number;
+  package_name: string;
+  question: string;
+  activity_type: string;
+  correct_answer_data: unknown;
+  given_answer_data: unknown;
+  answered_at: string;
+}
+
+export interface ProgressDetail {
+  scope_type: "package" | "subject";
+  package_id: number | null;
+  subject: string | null;
+  title: string;
+  total_answers: number;
+  mastery_counts: { unknown: number; learning: number; known: number; review: number };
+  items: ProgressDetailItem[];
+  recent_wrong: ProgressDetailWrongAnswer[];
+}
+
+export function getPackageDetail(childId: number, packageId: number) {
+  return get<ProgressDetail>(`/children/${childId}/progress/package/${packageId}`);
+}
+
+export function getSubjectDetail(childId: number, subject: string) {
+  return get<ProgressDetail>(`/children/${childId}/progress/subject/${encodeURIComponent(subject)}`);
+}

@@ -22,7 +22,7 @@ class ReviewState(Base):
         Integer, ForeignKey("item.id"), nullable=False
     )
     status: Mapped[str] = mapped_column(
-        String, nullable=False, default="new"
+        String, nullable=False, default="learning"
     )
     ease_factor: Mapped[float] = mapped_column(Float, nullable=False, default=2.5)
     interval_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

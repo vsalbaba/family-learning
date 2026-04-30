@@ -11,6 +11,7 @@ import PackageDetailPage from "./pages/PackageDetailPage";
 import LessonPage from "./pages/LessonPage";
 import ChildrenPage from "./pages/ChildrenPage";
 import ChildProgressPage from "./pages/ChildProgressPage";
+import ProgressDetailPage from "./pages/ProgressDetailPage";
 import PreviewLessonPage from "./pages/PreviewLessonPage";
 import SubjectLessonPage from "./pages/SubjectLessonPage";
 import HeroWalkPage from "./pages/HeroWalkPage";
@@ -42,6 +43,8 @@ function AppRoutes() {
             <Route path="/packages/:id/preview" element={<PreviewLessonPage />} />
             <Route path="/children" element={<ChildrenPage />} />
             <Route path="/children/:childId/progress" element={<ChildProgressPage />} />
+            <Route path="/children/:childId/progress/package/:packageId" element={<ProgressDetailPage />} />
+            <Route path="/children/:childId/progress/subject/:subject" element={<ProgressDetailPage />} />
           </>
         ) : (
           <>

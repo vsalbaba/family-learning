@@ -67,14 +67,14 @@ def _pkg(db: Session, parent: User) -> Package:
 
 
 class TestClassification:
-    def test_item_without_review_is_new(self, db_session, parent_user):
+    def test_item_without_review_is_unseen(self, db_session, parent_user):
         pkg = _pkg(db_session, parent_user)
         item = _make_item(db_session, pkg, sort_order=0)
         now = datetime.now(timezone.utc)
         cat, _ = _classify_and_score(item, None, now, False)
-        assert cat == "new"
+        assert cat == "unseen"
 
-    def test_item_with_learning_status_is_learning(
+    def test_item_with_review_status_is_remediation(
         self, db_session, parent_user, child_user
     ):
         pkg = _pkg(db_session, parent_user)
@@ -83,11 +83,11 @@ class TestClassification:
             db_session,
             child_user.id,
             item.id,
-            status="learning",
+            status="review",
             next_review_at=datetime.now(timezone.utc) + timedelta(hours=1),
         )
         cat, _ = _classify_and_score(item, rs, datetime.now(timezone.utc), False)
-        assert cat == "learning"
+        assert cat == "remediation"
 
     def test_item_with_past_next_review_is_due(
         self, db_session, parent_user, child_user
@@ -119,25 +119,9 @@ class TestClassification:
         cat, _ = _classify_and_score(item, rs, datetime.now(timezone.utc), False)
         assert cat == "not_due"
 
-    def test_item_with_null_next_review_at_is_new(
+    def test_item_with_null_next_review_at_is_unseen(
         self, db_session, parent_user, child_user
     ):
-        pkg = _pkg(db_session, parent_user)
-        item = _make_item(db_session, pkg)
-        rs = _make_review(
-            db_session,
-            child_user.id,
-            item.id,
-            status="new",
-            next_review_at=None,
-        )
-        cat, _ = _classify_and_score(item, rs, datetime.now(timezone.utc), False)
-        assert cat == "new"
-
-    def test_learning_with_past_review_still_learning(
-        self, db_session, parent_user, child_user
-    ):
-        """A learning item that is also past due stays in learning bucket."""
         pkg = _pkg(db_session, parent_user)
         item = _make_item(db_session, pkg)
         rs = _make_review(
@@ -145,10 +129,26 @@ class TestClassification:
             child_user.id,
             item.id,
             status="learning",
+            next_review_at=None,
+        )
+        cat, _ = _classify_and_score(item, rs, datetime.now(timezone.utc), False)
+        assert cat == "unseen"
+
+    def test_review_with_past_review_still_remediation(
+        self, db_session, parent_user, child_user
+    ):
+        """A review item that is also past due stays in remediation bucket."""
+        pkg = _pkg(db_session, parent_user)
+        item = _make_item(db_session, pkg)
+        rs = _make_review(
+            db_session,
+            child_user.id,
+            item.id,
+            status="review",
             next_review_at=datetime.now(timezone.utc) - timedelta(hours=1),
         )
         cat, _ = _classify_and_score(item, rs, datetime.now(timezone.utc), False)
-        assert cat == "learning"
+        assert cat == "remediation"
 
 
 # ── Budget ──────────────────────────────────────────────────────
@@ -312,16 +312,16 @@ class TestReviewPriority:
     def test_learning_selected_before_due_in_review_slots(
         self, db_session, parent_user, child_user
     ):
-        """Learning items get priority over due items in review slots."""
+        """Review items get priority over due items in review slots."""
         pkg = _pkg(db_session, parent_user)
         items = _make_items(db_session, pkg, 20)
-        # 2 learning
+        # 2 review (remediation)
         for item in items[:2]:
             _make_review(
                 db_session,
                 child_user.id,
                 item.id,
-                status="learning",
+                status="review",
                 ease_factor=1.5,
                 next_review_at=datetime.now(timezone.utc) - timedelta(hours=1),
                 last_reviewed_at=datetime.now(timezone.utc) - timedelta(days=2),
@@ -559,35 +559,35 @@ class TestOrdering:
         categories = []
         for it in selected:
             if it.id in due_ids:
-                categories.append("review")
+                categories.append("due")
             elif it.id in new_ids:
-                categories.append("new")
+                categories.append("unseen")
             elif it.id in filler_ids:
                 categories.append("filler")
 
-        # Review items should come before new, new before filler
-        review_positions = [i for i, c in enumerate(categories) if c == "review"]
-        new_positions = [i for i, c in enumerate(categories) if c == "new"]
+        # Due items should come before unseen, unseen before filler
+        due_positions = [i for i, c in enumerate(categories) if c == "due"]
+        unseen_positions = [i for i, c in enumerate(categories) if c == "unseen"]
         filler_positions = [i for i, c in enumerate(categories) if c == "filler"]
 
-        if review_positions and new_positions:
-            assert max(review_positions) < min(new_positions)
-        if new_positions and filler_positions:
-            assert max(new_positions) < min(filler_positions)
+        if due_positions and unseen_positions:
+            assert max(due_positions) < min(unseen_positions)
+        if unseen_positions and filler_positions:
+            assert max(unseen_positions) < min(filler_positions)
 
-    def test_within_review_learning_before_due(
+    def test_within_review_remediation_before_due(
         self, db_session, parent_user, child_user
     ):
-        """Within review slots, learning items come before due items."""
+        """Within review slots, remediation items come before due items."""
         pkg = _pkg(db_session, parent_user)
         items = _make_items(db_session, pkg, 15)
         now = datetime.now(timezone.utc)
-        # 1 learning
+        # 1 review (remediation)
         _make_review(
             db_session,
             child_user.id,
             items[0].id,
-            status="learning",
+            status="review",
             ease_factor=1.5,
             next_review_at=now - timedelta(hours=1),
             last_reviewed_at=now - timedelta(days=2),
@@ -721,16 +721,16 @@ class TestFallback:
     def test_count_999_returns_all_ordered(
         self, db_session, parent_user, child_user
     ):
-        """999 mode returns all items: learning → due → new → not_due."""
+        """999 mode returns all items: remediation → due → unseen → not_due."""
         pkg = _pkg(db_session, parent_user)
         items = _make_items(db_session, pkg, 10)
         now = datetime.now(timezone.utc)
-        # 1 learning
+        # 1 review (remediation)
         _make_review(
             db_session,
             child_user.id,
             items[0].id,
-            status="learning",
+            status="review",
             next_review_at=now - timedelta(hours=1),
             last_reviewed_at=now - timedelta(days=1),
         )
@@ -862,16 +862,16 @@ class TestScenarios:
     def test_wrong_answer_item_gets_priority_in_review(
         self, db_session, parent_user, child_user
     ):
-        """Item with learning status (wrong answer) gets priority in review slots."""
+        """Item with review status (wrong answer) gets priority in review slots."""
         pkg = _pkg(db_session, parent_user)
         items = _make_items(db_session, pkg, 15)
         now = datetime.now(timezone.utc)
-        # 1 learning (wrong answer)
+        # 1 review (wrong answer)
         _make_review(
             db_session,
             child_user.id,
             items[0].id,
-            status="learning",
+            status="review",
             ease_factor=1.3,
             interval_days=0,
             next_review_at=now - timedelta(hours=1),

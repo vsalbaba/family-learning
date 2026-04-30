@@ -1,6 +1,8 @@
 """Child account management and progress tracking."""
 
+import json
 import logging
+from collections import Counter
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import case, func
@@ -8,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.package import Item, Package
+from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
 from app.routers.auth import require_parent
@@ -306,3 +309,197 @@ def get_child_progress(
         "subject_progress": subject_progress,
         "weak_questions": weak_questions,
     }
+
+
+def _parse_json_safe(raw: str) -> object:
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return raw
+
+
+def _build_progress_detail(
+    db: Session,
+    child_id: int,
+    items: list[Item],
+    pkg_cache: dict[int, Package],
+    *,
+    scope_type: str,
+    package_id: int | None,
+    subject: str | None,
+    title: str,
+) -> dict:
+    item_ids = [it.id for it in items]
+
+    # Per-item answer stats
+    answer_stats: dict[int, tuple[int, int, int, str | None]] = {}
+    if item_ids:
+        rows = (
+            db.query(
+                Answer.item_id,
+                func.count(Answer.id),
+                func.sum(case((Answer.is_correct == True, 1), else_=0)),  # noqa: E712
+                func.sum(case((Answer.is_correct == False, 1), else_=0)),  # noqa: E712
+                func.max(Answer.answered_at),
+            )
+            .filter(Answer.child_id == child_id, Answer.item_id.in_(item_ids))
+            .group_by(Answer.item_id)
+            .all()
+        )
+        for iid, cnt, correct, wrong, last_at in rows:
+            answer_stats[iid] = (
+                cnt or 0,
+                int(correct or 0),
+                int(wrong or 0),
+                last_at.isoformat() if last_at else None,
+            )
+
+    # ReviewState lookup
+    review_map: dict[int, str] = {}
+    if item_ids:
+        rs_rows = (
+            db.query(ReviewState.item_id, ReviewState.status)
+            .filter(ReviewState.child_id == child_id, ReviewState.item_id.in_(item_ids))
+            .all()
+        )
+        for iid, st in rs_rows:
+            review_map[iid] = st
+
+    # Build items list
+    result_items = []
+    for it in items:
+        mastery = review_map.get(it.id, "unknown")
+        cnt, correct, wrong, last_at = answer_stats.get(it.id, (0, 0, 0, None))
+        pkg_name = _get_pkg_name(db, pkg_cache, it.package_id)
+        result_items.append({
+            "item_id": it.id,
+            "package_id": it.package_id,
+            "package_name": pkg_name,
+            "question": it.question,
+            "activity_type": it.activity_type,
+            "answer_count": cnt,
+            "correct_count": correct,
+            "wrong_count": wrong,
+            "mastery": mastery,
+            "last_answered_at": last_at,
+        })
+
+    # Mastery counts over ALL items
+    mastery_values = [review_map.get(it.id, "unknown") for it in items]
+    mastery_counter = Counter(mastery_values)
+    mastery_counts = {
+        "unknown": mastery_counter.get("unknown", 0),
+        "learning": mastery_counter.get("learning", 0),
+        "known": mastery_counter.get("known", 0),
+        "review": mastery_counter.get("review", 0),
+    }
+
+    # Total answers
+    total_answers = sum(s[0] for s in answer_stats.values())
+
+    # Recent wrong answers
+    recent_wrong = []
+    if item_ids:
+        wrong_rows = (
+            db.query(Answer)
+            .filter(
+                Answer.child_id == child_id,
+                Answer.item_id.in_(item_ids),
+                Answer.is_correct == False,  # noqa: E712
+            )
+            .order_by(Answer.answered_at.desc())
+            .limit(10)
+            .all()
+        )
+        item_map = {it.id: it for it in items}
+        for ans in wrong_rows:
+            it = item_map.get(ans.item_id)
+            if not it:
+                continue
+            pkg_name = _get_pkg_name(db, pkg_cache, it.package_id)
+            recent_wrong.append({
+                "item_id": ans.item_id,
+                "package_id": it.package_id,
+                "package_name": pkg_name,
+                "question": it.question,
+                "activity_type": it.activity_type,
+                "correct_answer_data": _parse_json_safe(it.answer_data),
+                "given_answer_data": _parse_json_safe(ans.given_answer),
+                "answered_at": ans.answered_at.isoformat() if ans.answered_at else None,
+            })
+
+    return {
+        "scope_type": scope_type,
+        "package_id": package_id,
+        "subject": subject,
+        "title": title,
+        "total_answers": total_answers,
+        "mastery_counts": mastery_counts,
+        "items": result_items,
+        "recent_wrong": recent_wrong,
+    }
+
+
+def _verify_child(db: Session, child_id: int, parent: User) -> User:
+    child = db.query(User).filter(
+        User.id == child_id, User.role == "child", User.parent_id == parent.id
+    ).first()
+    if not child:
+        raise HTTPException(status_code=404, detail="Dítě nenalezeno")
+    return child
+
+
+@router.get("/{child_id}/progress/package/{package_id}")
+def get_package_progress_detail(
+    child_id: int,
+    package_id: int,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    _verify_child(db, child_id, user)
+
+    pkg = db.query(Package).filter(Package.id == package_id).first()
+    if not pkg:
+        raise HTTPException(status_code=404, detail="Balíček nenalezen")
+
+    items = db.query(Item).filter(Item.package_id == package_id).all()
+    pkg_cache: dict[int, Package] = {pkg.id: pkg}
+
+    return _build_progress_detail(
+        db, child_id, items, pkg_cache,
+        scope_type="package",
+        package_id=package_id,
+        subject=None,
+        title=pkg.name,
+    )
+
+
+@router.get("/{child_id}/progress/subject/{subject}")
+def get_subject_progress_detail(
+    child_id: int,
+    subject: str,
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    _verify_child(db, child_id, user)
+
+    pkgs = db.query(Package).filter(Package.subject == subject).all()
+    if not pkgs:
+        all_pkgs = db.query(Package).filter(Package.subject.isnot(None)).all()
+        pkgs = [p for p in all_pkgs if subject.startswith(p.subject)]
+    if not pkgs:
+        raise HTTPException(status_code=404, detail="Předmět nenalezen")
+
+    pkg_cache: dict[int, Package] = {p.id: p for p in pkgs}
+    pkg_ids = list(pkg_cache.keys())
+    items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all()
+
+    title = pkgs[0].subject_display or pkgs[0].subject or subject
+
+    return _build_progress_detail(
+        db, child_id, items, pkg_cache,
+        scope_type="subject",
+        package_id=None,
+        subject=subject,
+        title=title,
+    )

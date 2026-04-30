@@ -357,7 +357,7 @@ class TestReviewStateUpdate:
             ReviewState.child_id == child_user.id,
             ReviewState.item_id == first.id,
         ).first()
-        assert rs.status == "learning"
+        assert rs.status == "review"
         assert rs.interval_days == 0
 
     def test_review_state_affects_next_lesson(

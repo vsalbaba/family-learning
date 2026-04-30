@@ -229,7 +229,7 @@ def _classify_and_score(
     """Return (category, score) for an item based on its review state."""
     if rs is None or rs.next_review_at is None:
         score = -item.sort_order + random.uniform(0, 10)
-        return ("new", score)
+        return ("unseen", score)
 
     recency_penalty = 0.0
     if not all_mode and rs.last_reviewed_at:
@@ -239,12 +239,12 @@ def _classify_and_score(
         elif hours_since < LESSON_CONFIG.anti_repeat_soft_hours:
             recency_penalty = -LESSON_CONFIG.anti_repeat_soft_penalty
 
-    if rs.status == "learning":
+    if rs.status == "review":
         score = (2.5 - rs.ease_factor) * LESSON_CONFIG.learning_ease_weight
         if rs.next_review_at <= now:
             score += LESSON_CONFIG.learning_overdue_bonus
         score += random.uniform(0, 20) + recency_penalty
-        return ("learning", score)
+        return ("remediation", score)
 
     if rs.next_review_at <= now:
         overdue_hours = (now - rs.next_review_at).total_seconds() / 3600
@@ -287,9 +287,9 @@ def _build_from_items(
 
     # Classify into buckets
     buckets: dict[str, list[tuple[float, Item]]] = {
-        "learning": [],
+        "remediation": [],
         "due": [],
-        "new": [],
+        "unseen": [],
         "not_due": [],
     }
     for item in items:
@@ -303,34 +303,34 @@ def _build_from_items(
     # Mode 999: return everything ordered
     if all_mode:
         result: list[Item] = []
-        for cat in ["learning", "due", "new", "not_due"]:
+        for cat in ["remediation", "due", "unseen", "not_due"]:
             result.extend(item for _, item in buckets[cat])
         return result
 
     # Budget allocation
     review_max, new_target, filler_target = _get_budget(count)
 
-    learning_items = [it for _, it in buckets["learning"]]
+    remediation_items = [it for _, it in buckets["remediation"]]
     due_items = [it for _, it in buckets["due"]]
-    review_pool = learning_items + due_items
-    new_pool = [it for _, it in buckets["new"]]
+    review_pool = remediation_items + due_items
+    unseen_pool = [it for _, it in buckets["unseen"]]
     filler_pool = [it for _, it in buckets["not_due"]]
 
     # Phase 1: fill by targets
     review_selected = review_pool[:review_max]
-    new_selected = new_pool[:new_target]
+    unseen_selected = unseen_pool[:new_target]
     filler_selected = filler_pool[:filler_target]
 
     review_used = len(review_selected)
-    new_used = len(new_selected)
+    unseen_used = len(unseen_selected)
     filler_used = len(filler_selected)
 
     # Phase 2: redistribute unused slots
-    remaining = count - review_used - new_used - filler_used
+    remaining = count - review_used - unseen_used - filler_used
     if remaining > 0:
-        extra = new_pool[new_used : new_used + remaining]
-        new_selected.extend(extra)
-        new_used += len(extra)
+        extra = unseen_pool[unseen_used : unseen_used + remaining]
+        unseen_selected.extend(extra)
+        unseen_used += len(extra)
         remaining -= len(extra)
     if remaining > 0:
         extra = filler_pool[filler_used : filler_used + remaining]
@@ -342,25 +342,25 @@ def _build_from_items(
         review_selected.extend(extra)
         review_used += len(extra)
 
-    result = review_selected + new_selected + filler_selected
+    result = review_selected + unseen_selected + filler_selected
 
     # Log actual selected counts + pool sizes
-    selected_learning = sum(1 for it in review_selected if it in learning_items)
-    selected_due = review_used - selected_learning
+    selected_remediation = sum(1 for it in review_selected if it in remediation_items)
+    selected_due = review_used - selected_remediation
     logger.info(
         "lesson_mix child=%d %s "
-        "selected: learning=%d due=%d new=%d not_due=%d total=%d | "
-        "pools: learning=%d due=%d new=%d not_due=%d",
+        "selected: remediation=%d due=%d unseen=%d not_due=%d total=%d | "
+        "pools: remediation=%d due=%d unseen=%d not_due=%d",
         child_id,
         log_label,
-        selected_learning,
+        selected_remediation,
         selected_due,
-        new_used,
+        unseen_used,
         filler_used,
         len(result),
-        len(buckets["learning"]),
+        len(buckets["remediation"]),
         len(buckets["due"]),
-        len(buckets["new"]),
+        len(buckets["unseen"]),
         len(buckets["not_due"]),
     )
 
