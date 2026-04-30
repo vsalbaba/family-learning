@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, children, farmageddon, game_progress, lessons, packages, rewards, tts
+from app.routers import auth, children, farmageddon, game_progress, lessons, packages, questions, rewards, tts
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(children.router, prefix="/api/children", tags=["children"])
 app.include_router(packages.router, prefix="/api/packages", tags=["packages"])
+app.include_router(questions.router, prefix="/api/questions", tags=["questions"])
 app.include_router(lessons.router, prefix="/api/lessons", tags=["lessons"])
 app.include_router(tts.router, prefix="/api/tts", tags=["tts"])
 app.include_router(rewards.router, prefix="/api/rewards", tags=["rewards"])
