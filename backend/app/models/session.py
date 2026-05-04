@@ -44,6 +44,7 @@ class Answer(Base):
     __tablename__ = "answer"
     __table_args__ = (
         Index("ix_answer_child_correct", "child_id", "is_correct"),
+        Index("ix_answer_child_answered", "child_id", "answered_at"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
