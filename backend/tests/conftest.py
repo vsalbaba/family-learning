@@ -14,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models.package import Item, Package
+from app.models.subject import Subject
 from app.models.user import User
 from app.services.auth_service import create_token, hash_pin
 
@@ -89,6 +90,24 @@ def auth_headers_child(child_user: User) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
+SEED_SUBJECTS = [
+    ("cestina", "Čeština", 1),
+    ("matematika", "Matematika", 2),
+    ("prirodoveda", "Přírodověda", 3),
+    ("anglictina", "Angličtina", 4),
+    ("vlastiveda", "Vlastivěda", 5),
+    ("chemie", "Chemie", 6),
+    ("nezarazeno", "Nezařazeno", 99),
+]
+
+
+@pytest.fixture(autouse=True)
+def seed_subjects(db_session: Session) -> None:
+    for slug, name, sort_order in SEED_SUBJECTS:
+        db_session.add(Subject(slug=slug, name=name, sort_order=sort_order))
+    db_session.commit()
+
+
 @pytest.fixture
 def sample_package_json() -> str:
     return (FIXTURES / "valid_package_all_types.json").read_text()
@@ -97,9 +116,11 @@ def sample_package_json() -> str:
 @pytest.fixture
 def published_package(db_session: Session, parent_user: User) -> Package:
     data = json.loads((FIXTURES / "valid_package_all_types.json").read_text())
+    nezarazeno = db_session.query(Subject).filter_by(slug="nezarazeno").one()
     pkg = Package(
         name=data["metadata"]["name"],
         subject=data["metadata"].get("subject"),
+        subject_id=nezarazeno.id,
         difficulty=data["metadata"].get("difficulty"),
         status="published",
         created_by=parent_user.id,
