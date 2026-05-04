@@ -19,11 +19,12 @@ export default function SubjectGrid() {
       <div className="subject-grid">
         {subjects.map((s) => (
           <button
-            key={s.subject}
+            key={`${s.subject_slug}-${s.grade ?? "all"}`}
             className="subject-tile"
             onClick={() =>
               navigate(
-                `/lesson/subject/${encodeURIComponent(s.subject)}${s.grade != null ? `?grade=${s.grade}` : ""}`
+                `/lesson/subject/${encodeURIComponent(s.subject_slug)}${s.grade != null ? `?grade=${s.grade}` : ""}`,
+                { state: { subjectId: s.subject_id } }
               )
             }
           >

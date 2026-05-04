@@ -13,7 +13,9 @@ import {
   createItem,
   deleteItem,
   exportPackage,
+  listSubjectsForPackages,
 } from "../api/packages";
+import type { SubjectOption } from "../api/packages";
 import type { ActivityType, PackageDetail, PackageItem, PackageSummary } from "../types/package";
 import ItemEditor from "../components/packages/ItemEditor";
 
@@ -70,8 +72,9 @@ export default function PackageDetailPage() {
   const [pkg, setPkg] = useState<PackageDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [mode, dispatch] = useReducer(modeReducer, { type: "viewing" } as PageMode);
-  const [metaForm, setMetaForm] = useState({ name: "", subject: "", difficulty: "", description: "", tts_lang: "", grade: "", topic: "" });
+  const [metaForm, setMetaForm] = useState({ name: "", subjectId: "", difficulty: "", description: "", tts_lang: "", grade: "", topic: "" });
   const [otherPackages, setOtherPackages] = useState<PackageSummary[]>([]);
+  const [subjects, setSubjects] = useState<SubjectOption[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -79,6 +82,7 @@ export default function PackageDetailPage() {
         .then(setPkg)
         .finally(() => setLoading(false));
     }
+    listSubjectsForPackages().then(setSubjects).catch(() => {});
   }, [id]);
 
   async function handleStatusChange(action: "publish" | "unpublish" | "archive") {
@@ -106,7 +110,7 @@ export default function PackageDetailPage() {
     if (!pkg) return;
     setMetaForm({
       name: pkg.name,
-      subject: pkg.subject ?? "",
+      subjectId: pkg.subject_id != null ? String(pkg.subject_id) : "",
       difficulty: pkg.difficulty ?? "",
       description: pkg.description ?? "",
       tts_lang: pkg.tts_lang ?? "",
@@ -119,19 +123,24 @@ export default function PackageDetailPage() {
   async function handleSaveMeta(e: React.FormEvent) {
     e.preventDefault();
     if (!pkg) return;
+    const subjectId = metaForm.subjectId ? parseInt(metaForm.subjectId) : null;
     await updatePackage(pkg.id, {
       name: metaForm.name,
-      subject: metaForm.subject || null,
+      subject_id: subjectId,
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
       tts_lang: metaForm.tts_lang || "",
       grade: metaForm.grade ? parseInt(metaForm.grade) : 0,
       topic: metaForm.topic || "",
     });
+    const selectedSubject = subjects.find((s) => s.id === subjectId);
     setPkg({
       ...pkg,
       name: metaForm.name,
-      subject: metaForm.subject || null,
+      subject_id: subjectId,
+      subject_slug: selectedSubject?.slug ?? null,
+      subject_name: selectedSubject?.name ?? null,
+      subject: selectedSubject?.slug ?? null,
       difficulty: metaForm.difficulty || null,
       description: metaForm.description || null,
       tts_lang: metaForm.tts_lang || null,
@@ -210,7 +219,7 @@ export default function PackageDetailPage() {
         <div>
           <h2>{pkg.name}</h2>
           <div className="package-meta">
-            {pkg.subject && <span className="tag">{pkg.subject}</span>}
+            {(pkg.subject_name || pkg.subject) && <span className="tag">{pkg.subject_name || pkg.subject}</span>}
             {pkg.grade != null && <span className="tag">{pkg.grade}. ročník</span>}
             {pkg.topic && <span className="tag">{pkg.topic}</span>}
             {pkg.difficulty && <span className="tag">{pkg.difficulty}</span>}
@@ -272,10 +281,15 @@ export default function PackageDetailPage() {
           </label>
           <label>
             Předmět
-            <input
-              value={metaForm.subject}
-              onChange={(e) => setMetaForm({ ...metaForm, subject: e.target.value })}
-            />
+            <select
+              value={metaForm.subjectId}
+              onChange={(e) => setMetaForm({ ...metaForm, subjectId: e.target.value })}
+            >
+              <option value="">—</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </label>
           <label>
             Ročník

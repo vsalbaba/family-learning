@@ -13,11 +13,12 @@ type LessonState = "idle" | "loading" | "answering" | "feedback" | "summary";
 
 interface Props {
   packageId?: number;
+  subjectId?: number;
   subject?: string;
   grade?: number;
 }
 
-export default function LessonRunner({ packageId, subject, grade }: Props) {
+export default function LessonRunner({ packageId, subjectId, subject, grade }: Props) {
   const navigate = useNavigate();
   const { updateRewardState } = useAuth();
   const [state, setState] = useState<LessonState>("idle");
@@ -33,7 +34,7 @@ export default function LessonRunner({ packageId, subject, grade }: Props) {
     setState("loading");
     setError("");
     try {
-      const resp = await startLesson({ packageId, subject, grade, questionCount });
+      const resp = await startLesson({ packageId, subjectId, subject, grade, questionCount });
       setSessionId(resp.session_id);
       setQuestion(resp.question);
       startTimeRef.current = Date.now();

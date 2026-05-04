@@ -2,6 +2,16 @@ import { del, get, post, put, uploadFile } from "./client";
 import type { ImportResponse, PackageDetail, PackageItem, PackageSummary } from "../types/package";
 import type { AnswerResponse } from "../types/lesson";
 
+export interface SubjectOption {
+  id: number;
+  slug: string;
+  name: string;
+}
+
+export function listSubjectsForPackages() {
+  return get<SubjectOption[]>("/packages/subjects");
+}
+
 export function listPackages() {
   return get<PackageSummary[]>("/packages");
 }

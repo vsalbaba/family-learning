@@ -41,7 +41,7 @@ export default function PackageCard({ pkg, isChild }: Props) {
         )}
       </div>
       <div className="package-card__meta">
-        {pkg.subject && <span className="tag">{pkg.subject}</span>}
+        {(pkg.subject_name || pkg.subject) && <span className="tag">{pkg.subject_name || pkg.subject}</span>}
         {pkg.grade != null && <span className="tag">{pkg.grade}. ročník</span>}
         {pkg.topic && <span className="tag">{pkg.topic}</span>}
         {pkg.difficulty && (

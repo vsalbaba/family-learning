@@ -122,9 +122,9 @@ export default function ChildProgressPage() {
                   <tbody>
                     {progress.subject_progress.map((s) => (
                       <tr
-                        key={s.subject}
+                        key={s.subject_slug}
                         className="progress-table-row--clickable"
-                        onClick={() => navigate(`/children/${childId}/progress/subject/${encodeURIComponent(s.subject)}`)}
+                        onClick={() => navigate(`/children/${childId}/progress/subject/${encodeURIComponent(s.subject_slug)}`)}
                       >
                         <td>{s.subject}</td>
                         <td>{s.session_count}</td>

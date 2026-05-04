@@ -52,6 +52,8 @@ export interface WeakQuestion {
 }
 
 export interface SubjectProgress {
+  subject_id: number;
+  subject_slug: string;
   subject: string;
   session_count: number;
   avg_score_pct: number;
@@ -114,6 +116,6 @@ export function getPackageDetail(childId: number, packageId: number) {
   return get<ProgressDetail>(`/children/${childId}/progress/package/${packageId}`);
 }
 
-export function getSubjectDetail(childId: number, subject: string) {
-  return get<ProgressDetail>(`/children/${childId}/progress/subject/${encodeURIComponent(subject)}`);
+export function getSubjectDetail(childId: number, subjectSlug: string) {
+  return get<ProgressDetail>(`/children/${childId}/progress/subject/${encodeURIComponent(subjectSlug)}`);
 }

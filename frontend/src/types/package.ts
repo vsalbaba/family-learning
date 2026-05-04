@@ -10,6 +10,9 @@ export type ActivityType =
 export interface PackageSummary {
   id: number;
   name: string;
+  subject_id: number | null;
+  subject_slug: string | null;
+  subject_name: string | null;
   subject: string | null;
   difficulty: string | null;
   description: string | null;

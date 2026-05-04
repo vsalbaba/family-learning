@@ -26,7 +26,7 @@ export default function ParentHome() {
   }
 
   const subjects = useMemo(() => {
-    const set = new Set(packages.map((p) => p.subject).filter(Boolean) as string[]);
+    const set = new Set(packages.map((p) => p.subject_name || p.subject).filter(Boolean) as string[]);
     return Array.from(set).sort();
   }, [packages]);
 
@@ -38,7 +38,7 @@ export default function ParentHome() {
 
   const filtered = packages.filter((p) => {
     if (statusFilter !== "all" && p.status !== statusFilter) return false;
-    if (subjectFilter !== "all" && p.subject !== subjectFilter) return false;
+    if (subjectFilter !== "all" && (p.subject_name || p.subject) !== subjectFilter) return false;
     if (difficultyFilter !== "all" && p.difficulty !== difficultyFilter) return false;
     return true;
   });

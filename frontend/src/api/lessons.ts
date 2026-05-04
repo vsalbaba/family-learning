@@ -3,12 +3,14 @@ import type { AnswerResponse, LessonStartResponse, LessonSummary, Question } fro
 
 export function startLesson(options: {
   packageId?: number;
+  subjectId?: number;
   subject?: string;
   grade?: number | null;
   questionCount: number;
 }) {
   return post<LessonStartResponse>("/lessons/start", {
     package_id: options.packageId,
+    subject_id: options.subjectId,
     subject: options.subject,
     grade: options.grade,
     question_count: options.questionCount,
@@ -16,7 +18,9 @@ export function startLesson(options: {
 }
 
 export interface SubjectInfo {
-  subject: string;
+  subject_id: number;
+  subject_slug: string;
+  subject_name: string;
   grade: number | null;
   display: string;
   package_count: number;
