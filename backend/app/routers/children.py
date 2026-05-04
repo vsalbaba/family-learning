@@ -1,13 +1,16 @@
-"""Child account management and progress tracking."""
+"""Child account management, progress tracking, and daily activity."""
 
 import json
 import logging
 from collections import Counter
+from datetime import date as date_type, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.package import Item, Package
 from app.models.review import ReviewState
@@ -15,6 +18,12 @@ from app.models.session import Answer, LearningSession
 from app.models.subject import Subject
 from app.models.user import User
 from app.routers.auth import require_parent
+from app.schemas.activity import (
+    DailyActivityResponse,
+    PackageActivity,
+    SubjectActivity,
+    SubjectDailyDetailResponse,
+)
 from app.schemas.user import ChildCreate, ChildResponse, ChildUpdate, UserResponse
 from app.services.auth_service import hash_pin
 
@@ -510,4 +519,137 @@ def get_subject_progress_detail(
         package_id=None,
         subject=subject_slug,
         title=subj.name,
+    )
+
+
+def _date_to_utc_range(
+    date_str: str | None,
+) -> tuple[datetime, datetime, str]:
+    tz = ZoneInfo(settings.app_timezone)
+    if date_str:
+        try:
+            local_date = date_type.fromisoformat(date_str)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Neplatný formát data")
+    else:
+        local_date = datetime.now(tz).date()
+    day_start = datetime.combine(local_date, time.min, tzinfo=tz)
+    day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=tz)
+    start_utc = day_start.astimezone(timezone.utc).replace(tzinfo=None)
+    end_utc = day_end.astimezone(timezone.utc).replace(tzinfo=None)
+    return start_utc, end_utc, local_date.isoformat()
+
+
+@router.get(
+    "/{child_id}/activity/daily", response_model=DailyActivityResponse
+)
+def get_daily_activity(
+    child_id: int,
+    date: str | None = Query(default=None),
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    _verify_child(db, child_id, user)
+    start_utc, end_utc, date_iso = _date_to_utc_range(date)
+
+    rows = (
+        db.query(
+            Subject.id,
+            Subject.slug,
+            Subject.name,
+            Subject.sort_order,
+            func.count(Answer.id).label("task_count"),
+        )
+        .join(Item, Answer.item_id == Item.id)
+        .join(Package, Item.package_id == Package.id)
+        .join(Subject, Package.subject_id == Subject.id)
+        .filter(
+            Answer.child_id == child_id,
+            Answer.answered_at >= start_utc,
+            Answer.answered_at < end_utc,
+        )
+        .group_by(Subject.id)
+        .order_by(Subject.sort_order, Subject.name)
+        .all()
+    )
+
+    subjects = [
+        SubjectActivity(
+            subject_id=r[0],
+            subject_slug=r[1],
+            subject_name=r[2],
+            task_count=r[4],
+        )
+        for r in rows
+    ]
+    return DailyActivityResponse(
+        child_id=child_id,
+        date=date_iso,
+        total_tasks=sum(s.task_count for s in subjects),
+        subjects=subjects,
+    )
+
+
+@router.get(
+    "/{child_id}/activity/daily/subjects/{subject_slug}",
+    response_model=SubjectDailyDetailResponse,
+)
+def get_daily_activity_subject_detail(
+    child_id: int,
+    subject_slug: str,
+    date: str | None = Query(default=None),
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    _verify_child(db, child_id, user)
+
+    subj = db.query(Subject).filter(Subject.slug == subject_slug).first()
+    if not subj:
+        raise HTTPException(status_code=404, detail="Předmět nenalezen")
+
+    start_utc, end_utc, date_iso = _date_to_utc_range(date)
+
+    rows = (
+        db.query(
+            Package.id,
+            Package.name,
+            func.count(Answer.id).label("task_count"),
+            func.sum(case((Answer.is_correct.is_(True), 1), else_=0)).label(
+                "correct_count"
+            ),
+            func.sum(case((Answer.is_correct.is_(False), 1), else_=0)).label(
+                "wrong_count"
+            ),
+        )
+        .join(Item, Answer.item_id == Item.id)
+        .join(Package, Item.package_id == Package.id)
+        .filter(
+            Answer.child_id == child_id,
+            Package.subject_id == subj.id,
+            Answer.answered_at >= start_utc,
+            Answer.answered_at < end_utc,
+        )
+        .group_by(Package.id)
+        .order_by(func.count(Answer.id).desc(), Package.name)
+        .all()
+    )
+
+    packages = [
+        PackageActivity(
+            package_id=r[0],
+            package_name=r[1],
+            task_count=r[2],
+            correct_count=r[3],
+            wrong_count=r[4],
+        )
+        for r in rows
+    ]
+    return SubjectDailyDetailResponse(
+        child_id=child_id,
+        date=date_iso,
+        subject_id=subj.id,
+        subject_slug=subj.slug,
+        subject_name=subj.name,
+        total_tasks=sum(p.task_count for p in packages),
+        packages=packages,
     )
