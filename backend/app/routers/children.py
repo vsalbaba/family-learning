@@ -540,17 +540,50 @@ def _date_to_utc_range(
     return start_utc, end_utc, local_date.isoformat()
 
 
+def _resolve_date_range(
+    date_str: str | None,
+    from_date: str | None,
+    to_date: str | None,
+) -> tuple[datetime, datetime, str]:
+    if from_date or to_date:
+        if not (from_date and to_date):
+            raise HTTPException(
+                status_code=400,
+                detail="Oba parametry from_date a to_date musí být zadány",
+            )
+        try:
+            d_from = date_type.fromisoformat(from_date)
+            d_to = date_type.fromisoformat(to_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Neplatný formát data")
+        if d_from > d_to:
+            raise HTTPException(
+                status_code=400, detail="from_date musí být před to_date"
+            )
+        tz = ZoneInfo(settings.app_timezone)
+        start_utc = datetime.combine(d_from, time.min, tzinfo=tz).astimezone(
+            timezone.utc
+        ).replace(tzinfo=None)
+        end_utc = datetime.combine(d_to + timedelta(days=1), time.min, tzinfo=tz).astimezone(
+            timezone.utc
+        ).replace(tzinfo=None)
+        return start_utc, end_utc, f"{d_from.isoformat()}/{d_to.isoformat()}"
+    return _date_to_utc_range(date_str)
+
+
 @router.get(
     "/{child_id}/activity/daily", response_model=DailyActivityResponse
 )
 def get_daily_activity(
     child_id: int,
     date: str | None = Query(default=None),
+    from_date: str | None = Query(default=None),
+    to_date: str | None = Query(default=None),
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
     _verify_child(db, child_id, user)
-    start_utc, end_utc, date_iso = _date_to_utc_range(date)
+    start_utc, end_utc, date_iso = _resolve_date_range(date, from_date, to_date)
 
     rows = (
         db.query(
@@ -598,6 +631,8 @@ def get_daily_activity_subject_detail(
     child_id: int,
     subject_slug: str,
     date: str | None = Query(default=None),
+    from_date: str | None = Query(default=None),
+    to_date: str | None = Query(default=None),
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
@@ -607,7 +642,7 @@ def get_daily_activity_subject_detail(
     if not subj:
         raise HTTPException(status_code=404, detail="Předmět nenalezen")
 
-    start_utc, end_utc, date_iso = _date_to_utc_range(date)
+    start_utc, end_utc, date_iso = _resolve_date_range(date, from_date, to_date)
 
     rows = (
         db.query(

@@ -444,3 +444,111 @@ class TestDailyActivity:
         )
         data = resp.json()
         assert data["total_tasks"] == 0
+
+
+class TestDateRangeActivity:
+    def test_from_to_date_range(
+        self, client, db_session, auth_headers_parent, parent_user, child_user,
+    ):
+        pkg = _make_package(db_session, parent_user, "matematika", "Mat")
+        item = _make_item(db_session, pkg)
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 1, 12, 0, 0))
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 2, 12, 0, 0))
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 3, 12, 0, 0))
+
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?from_date=2026-05-01&to_date=2026-05-02",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_tasks"] == 2
+        assert data["date"] == "2026-05-01/2026-05-02"
+
+    def test_from_after_to_returns_400(
+        self, client, auth_headers_parent, child_user,
+    ):
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?from_date=2026-05-05&to_date=2026-05-03",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 400
+
+    def test_only_from_without_to_returns_400(
+        self, client, auth_headers_parent, child_user,
+    ):
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?from_date=2026-05-01",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 400
+
+    def test_only_to_without_from_returns_400(
+        self, client, auth_headers_parent, child_user,
+    ):
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?to_date=2026-05-01",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 400
+
+    def test_from_to_same_day(
+        self, client, db_session, auth_headers_parent, parent_user, child_user,
+    ):
+        pkg = _make_package(db_session, parent_user, "matematika", "Mat")
+        item = _make_item(db_session, pkg)
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 2, 12, 0, 0))
+
+        resp_range = client.get(
+            f"/api/children/{child_user.id}/activity/daily?from_date=2026-05-02&to_date=2026-05-02",
+            headers=auth_headers_parent,
+        )
+        resp_single = client.get(
+            f"/api/children/{child_user.id}/activity/daily?date=2026-05-02",
+            headers=auth_headers_parent,
+        )
+        assert resp_range.json()["total_tasks"] == resp_single.json()["total_tasks"]
+
+    def test_from_to_overrides_date(
+        self, client, db_session, auth_headers_parent, parent_user, child_user,
+    ):
+        pkg = _make_package(db_session, parent_user, "matematika", "Mat")
+        item = _make_item(db_session, pkg)
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 1, 12, 0, 0))
+        _make_answer(db_session, child_user, item, answered_at=datetime(2026, 5, 3, 12, 0, 0))
+
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?date=2026-05-03&from_date=2026-05-01&to_date=2026-05-01",
+            headers=auth_headers_parent,
+        )
+        data = resp.json()
+        assert data["total_tasks"] == 1
+        assert data["date"] == "2026-05-01/2026-05-01"
+
+    def test_subject_detail_with_from_to(
+        self, client, db_session, auth_headers_parent, parent_user, child_user,
+    ):
+        pkg = _make_package(db_session, parent_user, "matematika", "Mat")
+        item = _make_item(db_session, pkg)
+        _make_answer(db_session, child_user, item, is_correct=True, answered_at=datetime(2026, 5, 1, 12, 0, 0))
+        _make_answer(db_session, child_user, item, is_correct=False, answered_at=datetime(2026, 5, 2, 12, 0, 0))
+        _make_answer(db_session, child_user, item, is_correct=True, answered_at=datetime(2026, 5, 5, 12, 0, 0))
+
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily/subjects/matematika?from_date=2026-05-01&to_date=2026-05-02",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_tasks"] == 2
+        assert data["packages"][0]["correct_count"] == 1
+        assert data["packages"][0]["wrong_count"] == 1
+
+    def test_invalid_from_date_format(
+        self, client, auth_headers_parent, child_user,
+    ):
+        resp = client.get(
+            f"/api/children/{child_user.id}/activity/daily?from_date=not-a-date&to_date=2026-05-01",
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 400
