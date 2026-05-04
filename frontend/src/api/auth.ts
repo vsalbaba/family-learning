@@ -152,12 +152,27 @@ export interface SubjectDailyDetail {
   packages: PackageActivity[];
 }
 
-export function getDailyActivity(childId: number, date?: string) {
-  const qs = date ? `?date=${date}` : "";
-  return get<DailyActivity>(`/children/${childId}/activity/daily${qs}`);
+export function getDailyActivity(
+  childId: number,
+  opts?: { date?: string; fromDate?: string; toDate?: string },
+) {
+  const params = new URLSearchParams();
+  if (opts?.fromDate) params.set("from_date", opts.fromDate);
+  if (opts?.toDate) params.set("to_date", opts.toDate);
+  if (opts?.date) params.set("date", opts.date);
+  const qs = params.toString();
+  return get<DailyActivity>(`/children/${childId}/activity/daily${qs ? `?${qs}` : ""}`);
 }
 
-export function getSubjectDailyDetail(childId: number, subjectSlug: string, date?: string) {
-  const qs = date ? `?date=${date}` : "";
-  return get<SubjectDailyDetail>(`/children/${childId}/activity/daily/subjects/${encodeURIComponent(subjectSlug)}${qs}`);
+export function getSubjectDailyDetail(
+  childId: number,
+  subjectSlug: string,
+  opts?: { date?: string; fromDate?: string; toDate?: string },
+) {
+  const params = new URLSearchParams();
+  if (opts?.fromDate) params.set("from_date", opts.fromDate);
+  if (opts?.toDate) params.set("to_date", opts.toDate);
+  if (opts?.date) params.set("date", opts.date);
+  const qs = params.toString();
+  return get<SubjectDailyDetail>(`/children/${childId}/activity/daily/subjects/${encodeURIComponent(subjectSlug)}${qs ? `?${qs}` : ""}`);
 }

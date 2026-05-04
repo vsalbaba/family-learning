@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getChildProgress } from "../api/auth";
-import type { ChildProgress, WeakQuestion } from "../api/auth";
+import { getChildProgress, getDailyActivity, getSubjectDailyDetail } from "../api/auth";
+import type { ChildProgress, WeakQuestion, DailyActivity, SubjectDailyDetail } from "../api/auth";
 
 const ACTIVITY_LABELS: Record<string, string> = {
   flashcard: "Kartička",
@@ -13,12 +13,55 @@ const ACTIVITY_LABELS: Record<string, string> = {
   math_input: "Číslo",
 };
 
+type ActivityFilter = "today" | "yesterday" | "week" | "month";
+
+const FILTER_LABELS: Record<ActivityFilter, string> = {
+  today: "Dnes",
+  yesterday: "Včera",
+  week: "Tento týden",
+  month: "Tento měsíc",
+};
+
+function getFilterDates(filter: ActivityFilter): { date?: string; fromDate?: string; toDate?: string } {
+  const now = new Date();
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  switch (filter) {
+    case "today":
+      return { date: fmt(now) };
+    case "yesterday": {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      return { date: fmt(y) };
+    }
+    case "week": {
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diff);
+      return { fromDate: fmt(monday), toDate: fmt(now) };
+    }
+    case "month": {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { fromDate: fmt(first), toDate: fmt(now) };
+    }
+  }
+}
+
 export default function ChildProgressPage() {
   const { childId } = useParams<{ childId: string }>();
   const navigate = useNavigate();
   const [progress, setProgress] = useState<ChildProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [activity, setActivity] = useState<DailyActivity | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<ActivityFilter>("today");
+  const [expandedDetail, setExpandedDetail] = useState<{
+    subjectSlug: string;
+    data: SubjectDailyDetail | null;
+    error?: boolean;
+  } | null>(null);
 
   useEffect(() => {
     if (childId) {
@@ -28,6 +71,27 @@ export default function ChildProgressPage() {
         .finally(() => setLoading(false));
     }
   }, [childId]);
+
+  useEffect(() => {
+    if (!childId) return;
+    setActivityLoading(true);
+    setExpandedDetail(null);
+    getDailyActivity(Number(childId), getFilterDates(activeFilter))
+      .then(setActivity)
+      .catch(() => setActivity(null))
+      .finally(() => setActivityLoading(false));
+  }, [childId, activeFilter]);
+
+  function toggleSubjectDetail(subjectSlug: string) {
+    if (expandedDetail?.subjectSlug === subjectSlug) {
+      setExpandedDetail(null);
+      return;
+    }
+    setExpandedDetail({ subjectSlug, data: null });
+    getSubjectDailyDetail(Number(childId!), subjectSlug, getFilterDates(activeFilter))
+      .then((detail) => setExpandedDetail({ subjectSlug, data: detail }))
+      .catch(() => setExpandedDetail({ subjectSlug, data: null, error: true }));
+  }
 
   if (loading) return <p>Načítání...</p>;
   if (error) return <p className="lesson-error">{error}</p>;
@@ -41,6 +105,72 @@ export default function ChildProgressPage() {
           Zpět
         </button>
       </div>
+
+      <div className="progress-activity-filters">
+        {(Object.keys(FILTER_LABELS) as ActivityFilter[]).map((key) => (
+          <button
+            key={key}
+            className={`progress-activity-filter${activeFilter === key ? " progress-activity-filter--active" : ""}`}
+            onClick={() => setActiveFilter(key)}
+          >
+            {FILTER_LABELS[key]}
+          </button>
+        ))}
+      </div>
+
+      <div className="progress-activity-ticker">
+        {activityLoading ? (
+          <span className="progress-activity-loading">Načítání...</span>
+        ) : !activity || activity.total_tasks === 0 ? (
+          <span className="progress-activity-empty">
+            {FILTER_LABELS[activeFilter]}: zatím bez aktivity
+          </span>
+        ) : (
+          <>
+            <span className="progress-activity-total">
+              {activity.total_tasks} úkolů:
+            </span>
+            {activity.subjects.map((s) => (
+              <button
+                key={s.subject_slug}
+                className={`progress-subject-pill${
+                  expandedDetail?.subjectSlug === s.subject_slug
+                    ? " progress-subject-pill--active" : ""
+                }`}
+                onClick={() => toggleSubjectDetail(s.subject_slug)}
+              >
+                {s.subject_name} {s.task_count}
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+
+      {expandedDetail && (
+        <div className="progress-activity-detail">
+          {expandedDetail.error ? (
+            <span className="progress-activity-error">
+              Nepodařilo se načíst detail.{" "}
+              <button className="btn-link" onClick={() => toggleSubjectDetail(expandedDetail.subjectSlug)}>
+                Zkusit znovu
+              </button>
+            </span>
+          ) : expandedDetail.data === null ? (
+            <span className="progress-activity-loading">Načítání...</span>
+          ) : expandedDetail.data.packages.length === 0 ? (
+            <span className="progress-activity-empty">Žádná aktivita v tomto předmětu</span>
+          ) : (
+            expandedDetail.data.packages.map((pkg) => (
+              <div key={pkg.package_id} className="progress-pkg-row">
+                <span className="progress-pkg-name">{pkg.package_name}</span>
+                <span className="progress-pkg-stats">
+                  {pkg.task_count} úkolů · {pkg.correct_count} správně · {pkg.wrong_count} špatně
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       <div className="progress-summary-cards">
         <div className="stat-card">
