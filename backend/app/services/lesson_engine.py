@@ -394,12 +394,12 @@ def build_lesson_item_sequence(
 
 
 def build_subject_lesson_sequence(
-    db: Session, child_id: int, subject: str, question_count: int,
+    db: Session, child_id: int, subject_id: int, question_count: int,
     grade: int | None = None,
 ) -> list[Item]:
     """Select and order items for a lesson from published packages of a subject+grade."""
     query = db.query(Package.id).filter(
-        Package.subject == subject, Package.status == "published",
+        Package.subject_id == subject_id, Package.status == "published",
     )
     if grade is not None:
         query = query.filter(Package.grade == grade)
@@ -411,7 +411,7 @@ def build_subject_lesson_sequence(
     items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all()
     if not items:
         return []
-    label = f"subject={subject}" + (f",grade={grade}" if grade is not None else "")
+    label = f"subject_id={subject_id}" + (f",grade={grade}" if grade is not None else "")
     return _build_from_items(
         db, child_id, items, question_count, log_label=label,
     )
@@ -475,13 +475,14 @@ def start_lesson(
 
 
 def start_subject_lesson(
-    db: Session, child_id: int, subject: str, question_count: int,
+    db: Session, child_id: int, subject_id: int, question_count: int,
     grade: int | None = None,
     child_user: User | None = None,
+    subject_slug: str | None = None,
 ) -> tuple[LearningSession, Item | None]:
     """Start a new subject+grade review lesson across published packages."""
     query = db.query(Package).filter(
-        Package.subject == subject, Package.status == "published",
+        Package.subject_id == subject_id, Package.status == "published",
     )
     if grade is not None:
         query = query.filter(Package.grade == grade)
@@ -491,7 +492,7 @@ def start_subject_lesson(
         raise ValueError("Pro tento předmět nejsou publikované balíčky")
 
     selected = build_subject_lesson_sequence(
-        db, child_id, subject, question_count, grade=grade,
+        db, child_id, subject_id, question_count, grade=grade,
     )
     if not selected:
         raise ValueError("Pro tento předmět nejsou dostupné otázky")
@@ -510,7 +511,8 @@ def start_subject_lesson(
     session = LearningSession(
         child_id=child_id,
         package_id=None,
-        subject=subject,
+        subject_id=subject_id,
+        subject=subject_slug,
         grade=grade,
         total_questions=len(selected),
         correct_count=0,
@@ -656,7 +658,7 @@ def extend_session(
         )
     else:
         selected = build_subject_lesson_sequence(
-            db, session.child_id, session.subject, LESSON_CONFIG.extension_question_count,
+            db, session.child_id, session.subject_id, LESSON_CONFIG.extension_question_count,
             grade=session.grade,
         )
 

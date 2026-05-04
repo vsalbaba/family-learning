@@ -9,15 +9,18 @@ from sqlalchemy.orm import Session
 from app.models.package import Item, Package
 from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
+from app.models.subject import Subject
 from app.models.user import User
 
 
 @pytest.fixture
 def package_with_items(db_session: Session, parent_user: User) -> Package:
+    math = db_session.query(Subject).filter_by(slug="matematika").one()
     pkg = Package(
         name="Matematika 1",
-        subject="math",
+        subject="matematika",
         subject_display="Matematika",
+        subject_id=math.id,
         status="published",
         created_by=parent_user.id,
     )
@@ -38,10 +41,12 @@ def package_with_items(db_session: Session, parent_user: User) -> Package:
 
 @pytest.fixture
 def second_package_same_subject(db_session: Session, parent_user: User) -> Package:
+    math = db_session.query(Subject).filter_by(slug="matematika").one()
     pkg = Package(
         name="Matematika 2",
-        subject="math",
+        subject="matematika",
         subject_display="Matematika",
+        subject_id=math.id,
         status="published",
         created_by=parent_user.id,
     )
@@ -248,14 +253,14 @@ def test_subject_detail_aggregates(
     )
 
     resp = client.get(
-        f"/api/children/{child_user.id}/progress/subject/math",
+        f"/api/children/{child_user.id}/progress/subject/matematika",
         headers=auth_headers_parent,
     )
     assert resp.status_code == 200
     data = resp.json()
     assert data["scope_type"] == "subject"
     assert data["package_id"] is None
-    assert data["subject"] == "math"
+    assert data["subject"] == "matematika"
     assert data["title"] == "Matematika"
     assert len(data["items"]) == 5
     assert data["total_answers"] == 5

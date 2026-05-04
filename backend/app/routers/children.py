@@ -12,6 +12,7 @@ from app.database import get_db
 from app.models.package import Item, Package
 from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
+from app.models.subject import Subject
 from app.models.user import User
 from app.routers.auth import require_parent
 from app.schemas.user import ChildCreate, ChildResponse, ChildUpdate, UserResponse
@@ -185,10 +186,12 @@ def get_child_progress(
         })
     package_progress.sort(key=lambda x: x["last_played"] or "", reverse=True)
 
-    # Per-subject aggregation (subject-mode lessons)
-    subj_stats: dict[str, dict] = {}
+    # Per-subject aggregation (subject-mode lessons) keyed by subject_id
+    subj_stats: dict[int, dict] = {}
     for s in subj_sessions:
-        key = s.subject or "(neznámý)"
+        key = s.subject_id
+        if key is None:
+            continue
         if key not in subj_stats:
             subj_stats[key] = {
                 "session_count": 0,
@@ -207,11 +210,20 @@ def get_child_progress(
         if s.started_at and (ss["last_played"] is None or s.started_at > ss["last_played"]):
             ss["last_played"] = s.started_at
 
+    subj_ids = list(subj_stats.keys())
+    subjects_map = {
+        s.id: s
+        for s in db.query(Subject).filter(Subject.id.in_(subj_ids)).all()
+    } if subj_ids else {}
+
     subject_progress = []
-    for subj, ss in subj_stats.items():
+    for sid, ss in subj_stats.items():
+        subj = subjects_map.get(sid)
         avg_pct = (ss["total_correct"] / ss["total_questions"] * 100) if ss["total_questions"] else 0
         subject_progress.append({
-            "subject": subj,
+            "subject_id": sid,
+            "subject_slug": subj.slug if subj else None,
+            "subject": subj.name if subj else "(neznámý)",
             "session_count": ss["session_count"],
             "avg_score_pct": round(avg_pct, 1),
             "best_score_pct": round(ss["best_score_pct"], 1),
@@ -474,32 +486,28 @@ def get_package_progress_detail(
     )
 
 
-@router.get("/{child_id}/progress/subject/{subject}")
+@router.get("/{child_id}/progress/subject/{subject_slug}")
 def get_subject_progress_detail(
     child_id: int,
-    subject: str,
+    subject_slug: str,
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
     _verify_child(db, child_id, user)
 
-    pkgs = db.query(Package).filter(Package.subject == subject).all()
-    if not pkgs:
-        all_pkgs = db.query(Package).filter(Package.subject.isnot(None)).all()
-        pkgs = [p for p in all_pkgs if subject.startswith(p.subject)]
-    if not pkgs:
+    subj = db.query(Subject).filter(Subject.slug == subject_slug).first()
+    if not subj:
         raise HTTPException(status_code=404, detail="Předmět nenalezen")
 
+    pkgs = db.query(Package).filter(Package.subject_id == subj.id).all()
     pkg_cache: dict[int, Package] = {p.id: p for p in pkgs}
     pkg_ids = list(pkg_cache.keys())
-    items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all()
-
-    title = pkgs[0].subject_display or pkgs[0].subject or subject
+    items = db.query(Item).filter(Item.package_id.in_(pkg_ids)).all() if pkg_ids else []
 
     return _build_progress_detail(
         db, child_id, items, pkg_cache,
         scope_type="subject",
         package_id=None,
-        subject=subject,
-        title=title,
+        subject=subject_slug,
+        title=subj.name,
     )

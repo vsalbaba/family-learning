@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.database import get_db
 from app.models.package import Item, Package
@@ -29,6 +29,13 @@ from app.schemas.package import (
 from app.schemas.session import AnswerRequest
 from app.services.lesson_engine import check_answer, get_child_answer_data, get_correct_answer_display
 from app.services.package_validator import validate_package
+from app.models.subject import Subject
+from app.services.subject_service import (
+    get_default_subject,
+    get_subject_by_slug,
+    list_active_subjects,
+    resolve_subject_or_default,
+)
 from app.services.svg_validator import validate_svg
 
 logger = logging.getLogger(__name__)
@@ -36,19 +43,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _normalize_subject(s: str | None) -> tuple[str | None, str | None]:
-    """Return (normalized_key, display) for a subject value."""
-    if not s or not s.strip():
-        return None, None
-    display = s.strip()
-    return display.lower(), display
-
-
 def _package_to_response(pkg: Package) -> PackageResponse:
     """Convert a Package ORM object to its API response model."""
+    sr = pkg.subject_rel
     return PackageResponse(
         id=pkg.id,
         name=pkg.name,
+        subject_id=pkg.subject_id,
+        subject_slug=sr.slug if sr else None,
+        subject_name=sr.name if sr else None,
         subject=pkg.subject,
         subject_display=pkg.subject_display,
         difficulty=pkg.difficulty,
@@ -99,11 +102,17 @@ def _import_package(
     data = result.parsed
     meta = data["metadata"]
 
-    subj_key, subj_display = _normalize_subject(meta.get("subject"))
+    slug_hint = meta.get("subject_slug")
+    if slug_hint:
+        subj = get_subject_by_slug(db, slug_hint) or get_default_subject(db)
+    else:
+        subj = resolve_subject_or_default(db, meta.get("subject"))
+
     pkg = Package(
         name=meta["name"],
-        subject=subj_key,
-        subject_display=subj_display,
+        subject_id=subj.id,
+        subject=subj.slug,
+        subject_display=subj.name,
         difficulty=meta.get("difficulty"),
         description=meta.get("description"),
         tts_lang=meta.get("tts_lang"),
@@ -187,7 +196,7 @@ def list_packages(
     db: Session = Depends(get_db),
 ):
     """List all packages, filtered by role."""
-    query = db.query(Package)
+    query = db.query(Package).options(joinedload(Package.subject_rel))
     if user.role == "child":
         query = query.filter(Package.status == "published")
         packages = query.all()
@@ -206,6 +215,15 @@ def list_packages(
     return [_package_to_response(p) for p in packages]
 
 
+@router.get("/subjects")
+def list_subjects_for_packages(
+    user: User = Depends(require_parent),
+    db: Session = Depends(get_db),
+):
+    subjects = list_active_subjects(db)
+    return [{"id": s.id, "slug": s.slug, "name": s.name} for s in subjects]
+
+
 @router.get("/{package_id}", response_model=PackageDetailResponse)
 def get_package(
     package_id: int,
@@ -213,7 +231,7 @@ def get_package(
     db: Session = Depends(get_db),
 ):
     """Retrieve a single package with its items."""
-    pkg = db.query(Package).filter(Package.id == package_id).first()
+    pkg = db.query(Package).options(joinedload(Package.subject_rel)).filter(Package.id == package_id).first()
     if not pkg:
         raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if user.role == "child" and pkg.status != "published":
@@ -240,10 +258,18 @@ def update_package(
         raise HTTPException(status_code=404, detail="Balíček nenalezen")
     if req.name is not None:
         pkg.name = req.name
-    if req.subject is not None:
-        subj_key, subj_display = _normalize_subject(req.subject)
-        pkg.subject = subj_key
-        pkg.subject_display = subj_display
+    if req.subject_id is not None:
+        subj = db.query(Subject).filter(Subject.id == req.subject_id).first()
+        if not subj:
+            raise HTTPException(status_code=422, detail="Neznámý předmět")
+        pkg.subject_id = subj.id
+        pkg.subject = subj.slug
+        pkg.subject_display = subj.name
+    elif req.subject is not None:
+        subj = resolve_subject_or_default(db, req.subject)
+        pkg.subject_id = subj.id
+        pkg.subject = subj.slug
+        pkg.subject_display = subj.name
     if req.difficulty is not None:
         pkg.difficulty = req.difficulty
     if req.description is not None:
@@ -445,9 +471,10 @@ def export_package(
                 image_obj["alt"] = item.image_alt
             item_dict["image"] = image_obj
         items_out.append(item_dict)
+    sr = pkg.subject_rel
     metadata = {
         "name": pkg.name,
-        "subject": pkg.subject_display or pkg.subject,
+        "subject": sr.name if sr else (pkg.subject_display or pkg.subject),
         "difficulty": pkg.difficulty,
         "description": pkg.description,
     }

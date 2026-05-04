@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.package import Item, Package
 from app.models.session import Answer, LearningSession
+from app.models.subject import Subject
 from app.models.user import User
 from app.routers.auth import require_child
 from app.schemas.package import ImageData
@@ -32,6 +33,7 @@ from app.services.lesson_engine import (
     start_subject_lesson,
     submit_answer,
 )
+from app.services.subject_service import get_subject_by_slug, resolve_subject
 
 logger = logging.getLogger(__name__)
 
@@ -66,26 +68,30 @@ def list_subjects(
     """Return distinct subject+grade combinations from published packages."""
     rows = (
         db.query(
-            Package.subject,
+            Subject.id,
+            Subject.slug,
+            Subject.name,
             Package.grade,
-            func.min(Package.subject_display).label("display"),
             func.count(Package.id).label("count"),
         )
-        .filter(Package.status == "published", Package.subject.isnot(None))
-        .group_by(Package.subject, Package.grade)
+        .join(Package, Package.subject_id == Subject.id)
+        .filter(Package.status == "published", Subject.is_active.is_(True))
+        .group_by(Subject.id, Subject.slug, Subject.name, Package.grade)
+        .order_by(Subject.sort_order, Package.grade)
         .all()
     )
     result = []
-    for subj, grade, display, cnt in rows:
-        base_display = display or subj
+    for subj_id, slug, name, grade, cnt in rows:
         if grade is not None:
-            full_display = f"{base_display}, {grade}. ročník"
+            display = f"{name}, {grade}. ročník"
         else:
-            full_display = base_display
+            display = name
         result.append({
-            "subject": subj,
+            "subject_id": subj_id,
+            "subject_slug": slug,
+            "subject_name": name,
             "grade": grade,
-            "display": full_display,
+            "display": display,
             "package_count": cnt,
         })
     return result
@@ -105,10 +111,38 @@ def lesson_start(
                 child_user=user,
             )
         else:
+            subject_id = req.subject_id
+            subject_slug: str | None = None
+            if subject_id is not None:
+                subj = db.query(Subject).filter(Subject.id == subject_id).first()
+                if not subj:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Předmět nenalezen",
+                    )
+                if req.subject:
+                    resolved = resolve_subject(db, req.subject)
+                    if resolved and resolved.id != subject_id:
+                        raise HTTPException(
+                            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="subject_id a subject se neshodují",
+                        )
+                subject_slug = subj.slug
+            else:
+                resolved = resolve_subject(db, req.subject)
+                if not resolved:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Předmět nenalezen",
+                    )
+                subject_id = resolved.id
+                subject_slug = resolved.slug
+
             session, first_item = start_subject_lesson(
-                db, user.id, req.subject, req.question_count,
+                db, user.id, subject_id, req.question_count,
                 grade=req.grade,
                 child_user=user,
+                subject_slug=subject_slug,
             )
     except ValueError as e:
         msg = str(e)

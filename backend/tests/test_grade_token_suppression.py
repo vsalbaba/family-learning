@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
+from app.models.subject import Subject
 from app.models.user import User
 from app.services.reward_service import process_answer_reward
 
@@ -75,12 +76,21 @@ class TestTokenEligibleParam:
 
 
 def _make_package(db: Session, parent: User, grade=None, subject=None) -> Package:
+    subject_id = None
+    if subject:
+        subj = db.query(Subject).filter_by(slug=subject).first()
+        if subj:
+            subject_id = subj.id
+    if subject_id is None:
+        nezarazeno = db.query(Subject).filter_by(slug="nezarazeno").one()
+        subject_id = nezarazeno.id
     pkg = Package(
         name=f"Test grade={grade}",
         status="published",
         created_by=parent.id,
         grade=grade,
         subject=subject,
+        subject_id=subject_id,
     )
     db.add(pkg)
     db.flush()

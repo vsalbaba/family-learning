@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
 from app.models.session import Answer, LearningSession
+from app.models.subject import Subject
 from app.models.user import User
 
 
@@ -42,15 +43,17 @@ def _create_session_with_answers(
 def _create_subject_session_with_answers(
     db: Session,
     child: User,
-    subject: str,
+    subject_id: int,
     items: list[Item],
     correct_flags: list[bool],
+    subject_slug: str | None = None,
 ):
     """Helper to create a finished subject-mode session with answers."""
     session = LearningSession(
         child_id=child.id,
         package_id=None,
-        subject=subject,
+        subject_id=subject_id,
+        subject=subject_slug,
         total_questions=len(items),
         correct_count=sum(correct_flags),
         item_ids=json.dumps([it.id for it in items]),
@@ -147,9 +150,11 @@ class TestChildProgress:
         self, client, db_session, parent_user, child_user, published_package, auth_headers_parent
     ):
         """Wrong answers from subject-mode sessions must appear in weak_questions."""
+        math = db_session.query(Subject).filter_by(slug="matematika").one()
         items = published_package.items[:2]
         _create_subject_session_with_answers(
-            db_session, child_user, "math", items, [False, True]
+            db_session, child_user, math.id, items, [False, True],
+            subject_slug="matematika",
         )
 
         resp = client.get(f"/api/children/{child_user.id}/progress", headers=auth_headers_parent)
@@ -166,22 +171,26 @@ class TestChildProgress:
         self, client, db_session, parent_user, child_user, published_package, auth_headers_parent
     ):
         """Subject-mode sessions must appear in subject_progress."""
+        math = db_session.query(Subject).filter_by(slug="matematika").one()
         items = published_package.items[:2]
         _create_subject_session_with_answers(
-            db_session, child_user, "math", items, [True, False]
+            db_session, child_user, math.id, items, [True, False],
+            subject_slug="matematika",
         )
         _create_subject_session_with_answers(
-            db_session, child_user, "math", items, [True, True]
+            db_session, child_user, math.id, items, [True, True],
+            subject_slug="matematika",
         )
 
         resp = client.get(f"/api/children/{child_user.id}/progress", headers=auth_headers_parent)
         data = resp.json()
         assert len(data["subject_progress"]) == 1
         sp = data["subject_progress"][0]
-        assert sp["subject"] == "math"
+        assert sp["subject_id"] == math.id
+        assert sp["subject_slug"] == "matematika"
+        assert sp["subject"] == "Matematika"
         assert sp["session_count"] == 2
         assert sp["best_score_pct"] == 100.0
-        # packages should be empty since these are subject sessions
         assert len(data["packages"]) == 0
 
     def test_auto_closed_session_stats(
