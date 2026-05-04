@@ -119,3 +119,45 @@ export function getPackageDetail(childId: number, packageId: number) {
 export function getSubjectDetail(childId: number, subjectSlug: string) {
   return get<ProgressDetail>(`/children/${childId}/progress/subject/${encodeURIComponent(subjectSlug)}`);
 }
+
+export interface SubjectActivity {
+  subject_id: number;
+  subject_slug: string;
+  subject_name: string;
+  task_count: number;
+}
+
+export interface DailyActivity {
+  child_id: number;
+  date: string;
+  total_tasks: number;
+  subjects: SubjectActivity[];
+}
+
+export interface PackageActivity {
+  package_id: number;
+  package_name: string;
+  task_count: number;
+  correct_count: number;
+  wrong_count: number;
+}
+
+export interface SubjectDailyDetail {
+  child_id: number;
+  date: string;
+  subject_id: number;
+  subject_slug: string;
+  subject_name: string;
+  total_tasks: number;
+  packages: PackageActivity[];
+}
+
+export function getDailyActivity(childId: number, date?: string) {
+  const qs = date ? `?date=${date}` : "";
+  return get<DailyActivity>(`/children/${childId}/activity/daily${qs}`);
+}
+
+export function getSubjectDailyDetail(childId: number, subjectSlug: string, date?: string) {
+  const qs = date ? `?date=${date}` : "";
+  return get<SubjectDailyDetail>(`/children/${childId}/activity/daily/subjects/${encodeURIComponent(subjectSlug)}${qs}`);
+}

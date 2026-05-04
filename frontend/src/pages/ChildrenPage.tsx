@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { listChildren, createChild, updateChild } from "../api/auth";
+import {
+  listChildren, createChild, updateChild,
+  getDailyActivity, getSubjectDailyDetail,
+} from "../api/auth";
+import type { DailyActivity, SubjectDailyDetail } from "../api/auth";
 import type { User } from "../types/user";
 import TokenIcon from "../components/common/TokenIcon";
 
@@ -14,9 +18,31 @@ export default function ChildrenPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState({ name: "", grade: "", pin: "" });
 
+  const [activity, setActivity] = useState<Map<number, DailyActivity | null>>(new Map());
+  const [expandedDetail, setExpandedDetail] = useState<{
+    childId: number;
+    subjectSlug: string;
+    data: SubjectDailyDetail | null;
+    error?: boolean;
+  } | null>(null);
+
   useEffect(() => {
     listChildren()
-      .then(setChildren)
+      .then((kids) => {
+        setChildren(kids);
+        for (const kid of kids) {
+          getDailyActivity(kid.id)
+            .then((da) => setActivity((prev) => new Map(prev).set(kid.id, da)))
+            .catch((err) => {
+              console.error(`Failed to load activity for child ${kid.id}`, err);
+              setActivity((prev) => {
+                const next = new Map(prev);
+                next.delete(kid.id);
+                return next;
+              });
+            });
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -63,6 +89,20 @@ export default function ChildrenPage() {
     setEditingId(null);
   }
 
+  function toggleSubjectDetail(childId: number, subjectSlug: string) {
+    if (expandedDetail?.childId === childId && expandedDetail.subjectSlug === subjectSlug) {
+      setExpandedDetail(null);
+      return;
+    }
+    setExpandedDetail({ childId, subjectSlug, data: null });
+    getSubjectDailyDetail(childId, subjectSlug)
+      .then((detail) => setExpandedDetail({ childId, subjectSlug, data: detail }))
+      .catch((err) => {
+        console.error(`Failed to load subject detail`, err);
+        setExpandedDetail({ childId, subjectSlug, data: null, error: true });
+      });
+  }
+
   return (
     <div className="page children-page">
       <div className="page-header">
@@ -100,6 +140,57 @@ export default function ChildrenPage() {
                 </button>
                 <span className="child-card__action">Přehled</span>
               </div>
+              {activity.has(child.id) && (
+                <div className="child-card__activity">
+                  {activity.get(child.id) === null ? null : activity.get(child.id)!.total_tasks === 0 ? (
+                    <span className="child-card__activity-empty">Dnes: zatím bez aktivity</span>
+                  ) : (
+                    <>
+                      <span className="child-card__activity-label">Dnes:</span>
+                      {activity.get(child.id)!.subjects.map((s) => (
+                        <button
+                          key={s.subject_slug}
+                          className={`child-card__subject-pill${
+                            expandedDetail?.childId === child.id && expandedDetail.subjectSlug === s.subject_slug
+                              ? " child-card__subject-pill--active" : ""
+                          }`}
+                          onClick={(e) => { e.stopPropagation(); toggleSubjectDetail(child.id, s.subject_slug); }}
+                        >
+                          {s.subject_name} {s.task_count}
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+              {expandedDetail?.childId === child.id && (
+                <div className="child-card__activity-detail">
+                  {expandedDetail.error ? (
+                    <span className="child-card__activity-error">
+                      Nepodařilo se načíst detail.{" "}
+                      <button
+                        className="btn-link"
+                        onClick={() => toggleSubjectDetail(child.id, expandedDetail.subjectSlug)}
+                      >
+                        Zkusit znovu
+                      </button>
+                    </span>
+                  ) : expandedDetail.data === null ? (
+                    <span className="child-card__activity-loading">Načítání...</span>
+                  ) : expandedDetail.data.packages.length === 0 ? (
+                    <span className="child-card__activity-empty">Žádná aktivita v tomto předmětu</span>
+                  ) : (
+                    expandedDetail.data.packages.map((pkg) => (
+                      <div key={pkg.package_id} className="child-card__pkg-row">
+                        <span className="child-card__pkg-name">{pkg.package_name}</span>
+                        <span className="child-card__pkg-stats">
+                          {pkg.task_count} úkolů · {pkg.correct_count} správně · {pkg.wrong_count} špatně
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
               {editingId === child.id ? (
                 <div className="child-card__edit-form">
                   <label>
