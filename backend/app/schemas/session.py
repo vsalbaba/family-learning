@@ -7,14 +7,20 @@ from app.schemas.package import ImageData
 
 class LessonStartRequest(BaseModel):
     package_id: int | None = None
+    subject_id: int | None = None
     subject: str | None = None
     grade: int | None = None
     question_count: int = Field(default=5, ge=1, le=999)
 
     @model_validator(mode="after")
     def exactly_one_source(self):
-        if bool(self.package_id) == bool(self.subject):
-            raise ValueError("Provide exactly one of package_id or subject")
+        has_pkg = bool(self.package_id)
+        has_subj_id = bool(self.subject_id)
+        has_subj_text = bool(self.subject)
+        if has_pkg and (has_subj_id or has_subj_text):
+            raise ValueError("Provide package_id or subject_id/subject, not both")
+        if not has_pkg and not has_subj_id and not has_subj_text:
+            raise ValueError("Provide package_id or subject_id")
         return self
 
 

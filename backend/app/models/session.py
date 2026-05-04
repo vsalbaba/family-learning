@@ -20,6 +20,9 @@ class LearningSession(Base):
         Integer, ForeignKey("package.id"), nullable=True
     )
     subject: Mapped[str | None] = mapped_column(String, nullable=True)
+    subject_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subject.id"), nullable=True
+    )
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now()

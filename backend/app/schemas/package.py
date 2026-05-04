@@ -47,6 +47,9 @@ class ItemResponse(BaseModel):
 class PackageResponse(BaseModel):
     id: int
     name: str
+    subject_id: int | None = None
+    subject_slug: str | None = None
+    subject_name: str | None = None
     subject: str | None = None
     subject_display: str | None = None
     difficulty: str | None = None
@@ -72,6 +75,7 @@ class PackageDetailResponse(PackageResponse):
 
 class PackageUpdateRequest(BaseModel):
     name: str | None = None
+    subject_id: int | None = None
     subject: str | None = None
     difficulty: str | None = None
     description: str | None = None

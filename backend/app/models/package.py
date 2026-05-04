@@ -1,7 +1,12 @@
 from datetime import datetime
 
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Index, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+if TYPE_CHECKING:
+    from app.models.subject import Subject
 
 from app.database import Base
 
@@ -10,6 +15,7 @@ class Package(Base):
     __tablename__ = "package"
     __table_args__ = (
         Index("ix_package_subject_grade_status", "subject", "grade", "status"),
+        Index("ix_package_subjectid_grade_status", "subject_id", "grade", "status"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -35,7 +41,11 @@ class Package(Base):
     tts_lang: Mapped[str | None] = mapped_column(String, nullable=True)
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     topic: Mapped[str | None] = mapped_column(String, nullable=True)
+    subject_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subject.id"), nullable=True
+    )
 
+    subject_rel: Mapped["Subject | None"] = relationship("Subject")
     items: Mapped[list["Item"]] = relationship(
         "Item", back_populates="package", cascade="all, delete-orphan",
         order_by="Item.sort_order"

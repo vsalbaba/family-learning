@@ -9,6 +9,7 @@
       "required": ["name"],
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "subject_slug": { "type": "string", "pattern": "^[a-z0-9-]+$", "maxLength": 100 },
         "subject": { "type": "string", "maxLength": 100 },
         "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
         "description": { "type": "string", "maxLength": 1000 },
