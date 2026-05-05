@@ -63,15 +63,8 @@ export default function ParentalReviewRunner({ review }: Props) {
 
       const justCompleted = resp.parental_review?.is_completed ?? false;
 
-      if (justCompleted) {
-        // Review finished — show feedback then completed screen
-        setFeedback(resp);
-        setState("feedback");
-        return;
-      }
-
-      if (question.activity_type === "flashcard") {
-        // Skip feedback overlay for flashcards
+      if (question.activity_type === "flashcard" && !justCompleted) {
+        // Skip feedback overlay for flashcards (unless review just completed)
         if (resp.next_question) {
           setQuestion(resp.next_question);
           startTimeRef.current = Date.now();
@@ -97,13 +90,8 @@ export default function ParentalReviewRunner({ review }: Props) {
       setSessionId(resp.session_id);
       setQuestion(resp.question);
       setReviewProgress(resp.review_progress);
-      if (resp.review_status !== "active") {
-        setReviewCompleted(true);
-        setState("completed");
-      } else {
-        startTimeRef.current = Date.now();
-        setState("answering");
-      }
+      startTimeRef.current = Date.now();
+      setState("answering");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Neznámá chyba");
       setState("idle");
@@ -113,8 +101,8 @@ export default function ParentalReviewRunner({ review }: Props) {
   async function handleContinue() {
     if (!feedback) return;
 
-    const isCompleted = reviewCompleted || feedback.parental_review?.is_completed;
-    if (isCompleted) {
+    // Check completion flag stored in state (was set during handleAnswer)
+    if (reviewCompleted || feedback.parental_review?.is_completed) {
       setState("completed");
       return;
     }
@@ -131,15 +119,15 @@ export default function ParentalReviewRunner({ review }: Props) {
     }
   }
 
-  // ── Completed screen ────────────────────────────────────────────────────
-  if (state === "completed" || reviewCompleted) {
+  // ── Completed screen — only shown when state machine reaches this state ──
+  if (state === "completed") {
     return (
       <div className="lesson-summary">
         <div className="summary-header">
           <span className="summary-emoji">🏆</span>
           <h2>Splněno!</h2>
           <p className="summary-score">
-            {reviewProgress} / {reviewTarget} kreditů
+            {reviewProgress} / {reviewTarget} otázek zvládnuto
           </p>
         </div>
         <p className="lesson-review-note">
@@ -162,7 +150,7 @@ export default function ParentalReviewRunner({ review }: Props) {
         {review.note && <p className="lesson-review-note">{review.note}</p>}
         <div className="review-progress-info">
           <span>
-            Splněno: {reviewProgress} / {reviewTarget} kreditů
+            Splněno: {reviewProgress} / {reviewTarget} otázek zvládnuto
           </span>
         </div>
         <div className="lesson-start-actions">
@@ -193,7 +181,7 @@ export default function ParentalReviewRunner({ review }: Props) {
           style={{ width: `${Math.min(100, (reviewProgress / reviewTarget) * 100)}%` }}
         />
         <span className="review-progress-bar__label">
-          {reviewProgress} / {reviewTarget}
+          {reviewProgress} / {reviewTarget} otázek zvládnuto
         </span>
       </div>
 
@@ -211,18 +199,27 @@ export default function ParentalReviewRunner({ review }: Props) {
             />
           )}
           {state === "feedback" && feedback && (
-            <FeedbackOverlay
-              isCorrect={feedback.is_correct}
-              explanation={feedback.explanation}
-              correctAnswer={feedback.correct_answer}
-              givenAnswer={feedback.given_answer}
-              questionText={question.question}
-              activityType={question.activity_type}
-              ttsLang={question.tts_lang}
-              onContinue={handleContinue}
-              reward={feedback.reward}
-              image={question.image}
-            />
+            <>
+              {/* Review-specific note: show after a correct answer if item was already credited */}
+              {feedback.parental_review && feedback.is_correct && !feedback.parental_review.was_new_credit && (
+                <p className="review-feedback-note">Správně. Procvičeno znovu.</p>
+              )}
+              {feedback.parental_review && !feedback.is_correct && (
+                <p className="review-feedback-note">Zkusíme dál.</p>
+              )}
+              <FeedbackOverlay
+                isCorrect={feedback.is_correct}
+                explanation={feedback.explanation}
+                correctAnswer={feedback.correct_answer}
+                givenAnswer={feedback.given_answer}
+                questionText={question.question}
+                activityType={question.activity_type}
+                ttsLang={question.tts_lang}
+                onContinue={handleContinue}
+                reward={feedback.reward}
+                image={question.image}
+              />
+            </>
           )}
         </>
       )}

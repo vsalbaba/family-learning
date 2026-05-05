@@ -632,22 +632,31 @@ def submit_answer(
         ).first()
         if pr:
             if is_correct and pr.status == "active":
-                credit = ParentalReviewCredit(
-                    review_id=pr.id,
-                    session_id=session.id,
-                    item_id=item_id,
-                )
-                db.add(credit)
-                pr.current_credits += 1
+                # Only count each item once per review (no duplicate credits)
+                existing_credit = db.query(ParentalReviewCredit).filter(
+                    ParentalReviewCredit.review_id == pr.id,
+                    ParentalReviewCredit.item_id == item_id,
+                ).first()
+                was_new = existing_credit is None
+                if was_new:
+                    credit = ParentalReviewCredit(
+                        review_id=pr.id,
+                        session_id=session.id,
+                        item_id=item_id,
+                    )
+                    db.add(credit)
+                    pr.current_credits += 1
                 is_completed = pr.current_credits >= pr.target_credits
-                if is_completed:
+                if is_completed and pr.status == "active":
                     pr.status = "completed"
                     pr.completed_at = datetime.now(timezone.utc)
+                    # Close the session so it doesn't show as open
+                    session.finished_at = datetime.now(timezone.utc)
                 pr_delta = ParentalReviewDelta(
                     review_id=pr.id,
                     progress=pr.current_credits,
                     target=pr.target_credits,
-                    was_new_credit=True,
+                    was_new_credit=was_new,
                     is_completed=is_completed,
                 )
             else:
@@ -746,3 +755,40 @@ def get_next_question_item(
         if seen[item_id] > answer_counts.get(item_id, 0):
             return db.query(Item).filter(Item.id == item_id).first()
     return None
+
+
+def build_question_response(
+    item: Item, index: int, total: int, tts_lang: str | None = None
+) -> "QuestionResponse":
+    """Build a QuestionResponse from an Item for child-facing endpoints.
+
+    This is the single source-of-truth for converting an ORM Item into
+    the API response shape — used by both the lessons and parental-reviews
+    routers to avoid duplication.
+
+    Args:
+        item: The Item ORM object.
+        index: 0-based question index within the session.
+        total: Total number of questions in the session.
+        tts_lang: Optional TTS language override (from the parent package).
+
+    Returns:
+        A QuestionResponse Pydantic model ready for serialisation.
+    """
+    from app.schemas.package import ImageData
+    from app.schemas.session import QuestionResponse
+
+    image = None
+    if item.image_svg:
+        image = ImageData(type="svg", svg=item.image_svg, alt=item.image_alt)
+    return QuestionResponse(
+        item_id=item.id,
+        question_index=index,
+        total_questions=total,
+        activity_type=item.activity_type,
+        question=item.question,
+        answer_data=get_child_answer_data(item),
+        hint=item.hint,
+        tts_lang=tts_lang,
+        image=image,
+    )

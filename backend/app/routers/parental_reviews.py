@@ -22,37 +22,15 @@ from app.schemas.parental_review import (
     ParentalReviewResponse,
 )
 from app.services.lesson_engine import (
-    LESSON_CONFIG,
     build_lesson_item_sequence,
+    build_question_response,
     build_subject_lesson_sequence,
-    get_child_answer_data,
     get_next_question_item,
 )
-from app.schemas.package import ImageData
-from app.schemas.session import QuestionResponse
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-
-def _item_to_question(
-    item: Item, index: int, total: int, tts_lang: str | None = None
-) -> QuestionResponse:
-    image = None
-    if item.image_svg:
-        image = ImageData(type="svg", svg=item.image_svg, alt=item.image_alt)
-    return QuestionResponse(
-        item_id=item.id,
-        question_index=index,
-        total_questions=total,
-        activity_type=item.activity_type,
-        question=item.question,
-        answer_data=get_child_answer_data(item),
-        hint=item.hint,
-        tts_lang=tts_lang,
-        image=image,
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +44,6 @@ def create_review(
     db: Session = Depends(get_db),
 ):
     """Create a new parental review assignment for a child."""
-    # Verify child belongs to this parent
     child = db.query(User).filter(User.id == req.child_id, User.role == "child").first()
     if not child or child.parent_id != user.id:
         raise HTTPException(
@@ -74,7 +51,6 @@ def create_review(
             detail="Dítě nenalezeno",
         )
 
-    # Verify scope exists
     if req.package_id:
         pkg = db.query(Package).filter(Package.id == req.package_id).first()
         if not pkg or pkg.status != "published":
@@ -149,7 +125,11 @@ def cancel_review(
     user: User = Depends(require_parent),
     db: Session = Depends(get_db),
 ):
-    """Cancel an active parental review assignment."""
+    """Cancel an active parental review assignment.
+
+    Also closes any open sessions linked to this review so the child
+    cannot continue submitting answers against it.
+    """
     review = db.query(ParentalReview).filter(ParentalReview.id == review_id).first()
     if not review:
         raise HTTPException(status_code=404, detail="Opakování nenalezeno")
@@ -160,7 +140,16 @@ def cancel_review(
             status_code=400,
             detail="Opakování není aktivní",
         )
+    now = datetime.now(timezone.utc)
     review.status = "cancelled"
+    review.cancelled_at = now
+
+    # Close any open sessions tied to this review
+    db.query(LearningSession).filter(
+        LearningSession.parental_review_id == review_id,
+        LearningSession.finished_at.is_(None),
+    ).update({"finished_at": now}, synchronize_session="fetch")
+
     db.commit()
     db.refresh(review)
     return review
@@ -173,7 +162,7 @@ def cancel_review(
 @router.post("/{review_id}/next-batch", response_model=NextBatchResponse)
 def next_batch(
     review_id: int,
-    req: NextBatchRequest = Depends(),
+    req: NextBatchRequest,
     user: User = Depends(require_child),
     db: Session = Depends(get_db),
 ):
@@ -182,6 +171,8 @@ def next_batch(
     If an unfinished session tied to this review already exists, it is
     reused. Otherwise a fresh batch is created, closing any unrelated
     open sessions first.
+
+    ``question_count`` is read from the JSON request body (default 10).
     """
     review = db.query(ParentalReview).filter(ParentalReview.id == review_id).first()
     if not review:
@@ -216,7 +207,6 @@ def next_batch(
             existing_session = None
 
     if not existing_session:
-        # Build a fresh batch of questions
         question_count = req.question_count
 
         if review.package_id:
@@ -268,7 +258,7 @@ def next_batch(
         db.query(Answer).filter(Answer.session_id == session.id).count()
     )
     tts_lang = next_item.package.tts_lang if next_item.package else None
-    question = _item_to_question(next_item, answered_count, session.total_questions, tts_lang)
+    question = build_question_response(next_item, answered_count, session.total_questions, tts_lang)
 
     return NextBatchResponse(
         session_id=session.id,

@@ -4,8 +4,16 @@ import {
   listChildren, createChild, updateChild,
   getDailyActivity, getSubjectDailyDetail,
 } from "../api/auth";
+import { listPackages } from "../api/packages";
+import {
+  createParentalReview,
+  cancelParentalReview,
+  listChildReviews,
+} from "../api/parentalReviews";
 import type { DailyActivity, SubjectDailyDetail } from "../api/auth";
 import type { User } from "../types/user";
+import type { PackageSummary } from "../types/package";
+import type { ParentalReview, ParentalReviewCreate } from "../types/parentalReview";
 import TokenIcon from "../components/common/TokenIcon";
 
 export default function ChildrenPage() {
@@ -26,6 +34,16 @@ export default function ChildrenPage() {
     error?: boolean;
   } | null>(null);
 
+  // Parental reviews state
+  const [packages, setPackages] = useState<PackageSummary[]>([]);
+  const [reviewsByChild, setReviewsByChild] = useState<Map<number, ParentalReview[]>>(new Map());
+  const [showReviewForm, setShowReviewForm] = useState<number | null>(null);
+  const [reviewForm, setReviewForm] = useState<{
+    packageId: string;
+    targetCredits: string;
+    note: string;
+  }>({ packageId: "", targetCredits: "20", note: "" });
+
   useEffect(() => {
     listChildren()
       .then((kids) => {
@@ -41,9 +59,15 @@ export default function ChildrenPage() {
                 return next;
               });
             });
+          listChildReviews(kid.id)
+            .then((reviews) => setReviewsByChild((prev) => new Map(prev).set(kid.id, reviews)))
+            .catch(() => {});
         }
       })
       .finally(() => setLoading(false));
+    listPackages()
+      .then((pkgs) => setPackages(pkgs.filter((p) => p.status === "published")))
+      .catch(() => {});
   }, []);
 
   async function handleAdd() {
@@ -101,6 +125,45 @@ export default function ChildrenPage() {
         console.error(`Failed to load subject detail`, err);
         setExpandedDetail({ childId, subjectSlug, data: null, error: true });
       });
+  }
+
+  function openReviewForm(childId: number) {
+    setShowReviewForm(childId);
+    setReviewForm({ packageId: "", targetCredits: "20", note: "" });
+  }
+
+  async function handleCreateReview(childId: number) {
+    const pkgId = parseInt(reviewForm.packageId);
+    if (!pkgId) return;
+    const data: ParentalReviewCreate = {
+      child_id: childId,
+      package_id: pkgId,
+      target_credits: parseInt(reviewForm.targetCredits) || 20,
+      note: reviewForm.note.trim() || null,
+    };
+    try {
+      const review = await createParentalReview(data);
+      setReviewsByChild((prev) => {
+        const existing = prev.get(childId) ?? [];
+        return new Map(prev).set(childId, [review, ...existing]);
+      });
+      setShowReviewForm(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Chyba při vytváření opakování");
+    }
+  }
+
+  async function handleCancelReview(childId: number, reviewId: number) {
+    if (!confirm("Zrušit toto opakování?")) return;
+    try {
+      const cancelled = await cancelParentalReview(reviewId);
+      setReviewsByChild((prev) => {
+        const existing = prev.get(childId) ?? [];
+        return new Map(prev).set(childId, existing.map((r) => (r.id === reviewId ? cancelled : r)));
+      });
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Chyba při rušení opakování");
+    }
   }
 
   return (
@@ -250,6 +313,92 @@ export default function ChildrenPage() {
                   </button>
                 </div>
               )}
+
+              {/* Parental reviews section */}
+              <div className="child-card__reviews">
+                <div className="child-card__reviews-header">
+                  <span className="child-card__reviews-title">Opakování</span>
+                  <button
+                    className="btn btn-small btn-primary"
+                    onClick={() => openReviewForm(child.id)}
+                  >
+                    + Zadat opakování
+                  </button>
+                </div>
+
+                {showReviewForm === child.id && (
+                  <div className="review-form">
+                    <label>
+                      Balíček
+                      <select
+                        value={reviewForm.packageId}
+                        onChange={(e) => setReviewForm({ ...reviewForm, packageId: e.target.value })}
+                      >
+                        <option value="">— vyberte —</option>
+                        {packages.map((pkg) => (
+                          <option key={pkg.id} value={pkg.id}>
+                            {pkg.name}{pkg.grade != null ? ` (${pkg.grade}. r.)` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Cíl (počet otázek zvládnuto)
+                      <input
+                        type="number"
+                        min="1"
+                        max="500"
+                        value={reviewForm.targetCredits}
+                        onChange={(e) => setReviewForm({ ...reviewForm, targetCredits: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Poznámka (volitelně)
+                      <input
+                        type="text"
+                        value={reviewForm.note}
+                        onChange={(e) => setReviewForm({ ...reviewForm, note: e.target.value })}
+                        placeholder="např. Procvičit násobilku"
+                      />
+                    </label>
+                    <div className="editor-actions">
+                      <button
+                        className="btn btn-small btn-primary"
+                        onClick={() => handleCreateReview(child.id)}
+                        disabled={!reviewForm.packageId}
+                      >
+                        Vytvořit
+                      </button>
+                      <button
+                        className="btn btn-small btn-secondary"
+                        onClick={() => setShowReviewForm(null)}
+                      >
+                        Zrušit
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {(reviewsByChild.get(child.id) ?? []).map((r) => (
+                  <div key={r.id} className={`review-item review-item--${r.status}`}>
+                    <span className="review-item__note">{r.note || "Opakování"}</span>
+                    <span className="review-item__progress">
+                      {r.current_credits} / {r.target_credits} otázek zvládnuto
+                    </span>
+                    <span className={`review-item__status review-item__status--${r.status}`}>
+                      {r.status === "active" ? "aktivní" : r.status === "completed" ? "splněno ✓" : "zrušeno"}
+                    </span>
+                    {r.status === "active" && (
+                      <button
+                        className="btn btn-small btn-secondary"
+                        onClick={() => handleCancelReview(child.id, r.id)}
+                      >
+                        Zrušit
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ))
         )}

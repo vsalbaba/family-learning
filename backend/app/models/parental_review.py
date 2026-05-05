@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -42,12 +42,14 @@ class ParentalReview(Base):
         DateTime, server_default=func.now()
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class ParentalReviewCredit(Base):
     __tablename__ = "parental_review_credit"
     __table_args__ = (
         Index("ix_prc_review", "review_id"),
+        UniqueConstraint("review_id", "item_id", name="uq_prc_review_item"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.session import QuestionResponse
+from app.schemas.session import QuestionResponse, ParentalReviewInfo  # noqa: F401 – re-exported
 
 
 class ParentalReviewCreate(BaseModel):
@@ -37,6 +37,7 @@ class ParentalReviewResponse(BaseModel):
     note: str | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    cancelled_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -51,11 +52,3 @@ class NextBatchResponse(BaseModel):
     review_progress: int
     review_target: int
     review_status: str
-
-
-class ParentalReviewInfo(BaseModel):
-    review_id: int
-    progress: int
-    target: int
-    was_new_credit: bool
-    is_completed: bool

@@ -36,12 +36,15 @@ export default function ChildHome() {
         setProgressMap(map);
       })
       .catch(() => {});
-    if (user) {
+  }, []);
+
+  useEffect(() => {
+    if (user?.id) {
       listChildReviews(user.id)
         .then((reviews) => setActiveReviews(reviews.filter((r) => r.status === "active")))
         .catch(() => {});
     }
-  }, [user]);
+  }, [user?.id]);
 
   async function playGame(path: string) {
     if (windowActive) {
@@ -88,7 +91,7 @@ export default function ChildHome() {
                       {r.note || "Opakování"}
                     </span>
                     <span className="parental-review-btn__progress">
-                      {r.current_credits} / {r.target_credits} kreditů
+                      {r.current_credits} / {r.target_credits} otázek zvládnuto
                     </span>
                   </button>
                 ))}

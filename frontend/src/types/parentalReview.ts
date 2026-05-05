@@ -11,6 +11,7 @@ export interface ParentalReview {
   note: string | null;
   created_at: string;
   completed_at: string | null;
+  cancelled_at: string | null;
 }
 
 export interface NextBatchResponse {
