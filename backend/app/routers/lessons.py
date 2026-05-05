@@ -20,11 +20,13 @@ from app.schemas.session import (
     AnswerResponse,
     LessonStartRequest,
     LessonSummaryResponse,
+    ParentalReviewInfo,
     QuestionResponse,
     RewardInfo,
 )
 from app.services.lesson_engine import (
     LESSON_CONFIG,
+    build_question_response,
     extend_session,
     get_child_answer_data,
     get_correct_answer_display,
@@ -44,20 +46,7 @@ def _item_to_question(
     item: Item, index: int, total: int, tts_lang: str | None = None
 ) -> QuestionResponse:
     """Build a QuestionResponse from an Item for the child-facing API."""
-    image = None
-    if item.image_svg:
-        image = ImageData(type="svg", svg=item.image_svg, alt=item.image_alt)
-    return QuestionResponse(
-        item_id=item.id,
-        question_index=index,
-        total_questions=total,
-        activity_type=item.activity_type,
-        question=item.question,
-        answer_data=get_child_answer_data(item),
-        hint=item.hint,
-        tts_lang=tts_lang,
-        image=image,
-    )
+    return build_question_response(item, index, total, tts_lang)
 
 
 @router.get("/subjects")
@@ -187,7 +176,7 @@ def lesson_answer(
         raise HTTPException(status_code=403, detail="Toto není tvoje lekce")
 
     try:
-        feedback, reward_delta = submit_answer(
+        feedback, reward_delta, pr_delta = submit_answer(
             db, session, req.item_id, req.given_answer, req.response_time_ms,
             child_user=user,
         )
@@ -216,6 +205,7 @@ def lesson_answer(
         explanation=feedback.explanation,
         next_question=next_question,
         reward=RewardInfo(**vars(reward_delta)) if reward_delta else None,
+        parental_review=ParentalReviewInfo(**vars(pr_delta)) if pr_delta else None,
     )
 
 

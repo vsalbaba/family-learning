@@ -3,8 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { listPackages } from "../api/packages";
 import { activateWindow } from "../api/rewards";
 import { getAllGameProgress } from "../api/gameProgress";
+import { listChildReviews } from "../api/parentalReviews";
 import type { GameKey, GameProgress } from "../api/gameProgress";
 import type { PackageSummary } from "../types/package";
+import type { ParentalReview } from "../types/parentalReview";
 import SubjectGrid from "../components/packages/SubjectGrid";
 import PackageList from "../components/packages/PackageList";
 import TokenIcon from "../components/common/TokenIcon";
@@ -18,6 +20,7 @@ export default function ChildHome() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [progressMap, setProgressMap] = useState<Partial<Record<GameKey, GameProgress>>>({});
+  const [activeReviews, setActiveReviews] = useState<ParentalReview[]>([]);
 
   const { isActive: windowActive } = useGameWindow();
   const tokens = user?.game_tokens ?? 0;
@@ -34,6 +37,14 @@ export default function ChildHome() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (user?.id) {
+      listChildReviews(user.id)
+        .then((reviews) => setActiveReviews(reviews.filter((r) => r.status === "active")))
+        .catch(() => {});
+    }
+  }, [user?.id]);
 
   async function playGame(path: string) {
     if (windowActive) {
@@ -66,6 +77,27 @@ export default function ChildHome() {
       ) : (
         <>
           <SubjectGrid />
+          {activeReviews.length > 0 && (
+            <div className="parental-reviews-section">
+              <h3>Opakování od rodiče</h3>
+              <div className="parental-reviews-list">
+                {activeReviews.map((r) => (
+                  <button
+                    key={r.id}
+                    className="btn btn-primary parental-review-btn"
+                    onClick={() => navigate(`/parental-review/${r.id}`)}
+                  >
+                    <span className="parental-review-btn__label">
+                      {r.note || "Opakování"}
+                    </span>
+                    <span className="parental-review-btn__progress">
+                      {r.current_credits} / {r.target_credits} otázek zvládnuto
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <PackageList packages={packages} isChild />
           <div className="games-section">
             <h3>Hry</h3>

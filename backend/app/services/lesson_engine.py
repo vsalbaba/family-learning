@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
+from app.models.parental_review import ParentalReview, ParentalReviewCredit
 from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
@@ -86,6 +87,15 @@ class Feedback:
     is_correct: bool
     correct_answer: str  # JSON string
     explanation: str | None
+
+
+@dataclass
+class ParentalReviewDelta:
+    review_id: int
+    progress: int
+    target: int
+    was_new_credit: bool
+    is_completed: bool
 
 
 def _normalize(text: str) -> str:
@@ -417,6 +427,19 @@ def build_subject_lesson_sequence(
     )
 
 
+def build_multi_package_lesson_sequence(
+    db: Session, child_id: int, package_ids: list[int], question_count: int,
+) -> list[Item]:
+    """Select and order items for a lesson from multiple explicit packages."""
+    items = db.query(Item).filter(Item.package_id.in_(package_ids)).all()
+    if not items:
+        return []
+    label = f"pkgs={package_ids}"
+    return _build_from_items(
+        db, child_id, items, question_count, log_label=label,
+    )
+
+
 def start_lesson(
     db: Session, child_id: int, package_id: int, question_count: int,
     child_user: User | None = None,
@@ -532,7 +555,7 @@ def submit_answer(
     given_answer: str,
     response_time_ms: int | None,
     child_user: User | None = None,
-) -> tuple[Feedback, RewardDelta | None]:
+) -> tuple[Feedback, RewardDelta | None, ParentalReviewDelta | None]:
     """Submit an answer for a question in an active session.
 
     Checks correctness, records the answer, updates spaced repetition
@@ -548,7 +571,7 @@ def submit_answer(
         child_user: Optional User object for reward tracking.
 
     Returns:
-        Tuple of (Feedback, RewardDelta or None).
+        Tuple of (Feedback, RewardDelta or None, ParentalReviewDelta or None).
 
     Raises:
         ValueError: If the session is finished, item not found, or
@@ -614,6 +637,60 @@ def submit_answer(
             child_user, is_correct, token_eligible=token_eligible,
         )
 
+    # Handle parental review credit
+    pr_delta: ParentalReviewDelta | None = None
+    if session.parental_review_id is not None:
+        pr = db.query(ParentalReview).filter(
+            ParentalReview.id == session.parental_review_id
+        ).first()
+        if pr:
+            if is_correct and pr.status == "active":
+                # Only count each item once per review (no duplicate credits).
+                # The unique constraint on (review_id, item_id) is the definitive
+                # guard; the pre-check avoids unnecessary INTEGRITYERRORs in the
+                # common non-concurrent case.
+                existing_credit = db.query(ParentalReviewCredit).filter(
+                    ParentalReviewCredit.review_id == pr.id,
+                    ParentalReviewCredit.item_id == item_id,
+                ).first()
+                was_new = existing_credit is None
+                if was_new:
+                    from sqlalchemy.exc import IntegrityError
+                    try:
+                        nested = db.begin_nested()
+                        credit = ParentalReviewCredit(
+                            review_id=pr.id,
+                            session_id=session.id,
+                            item_id=item_id,
+                        )
+                        db.add(credit)
+                        db.flush()
+                        pr.current_credits += 1
+                    except IntegrityError:
+                        nested.rollback()
+                        was_new = False
+                is_completed = pr.current_credits >= pr.target_credits
+                if is_completed and pr.status == "active":
+                    pr.status = "completed"
+                    pr.completed_at = datetime.now(timezone.utc)
+                    # Close the session so it doesn't show as open
+                    session.finished_at = datetime.now(timezone.utc)
+                pr_delta = ParentalReviewDelta(
+                    review_id=pr.id,
+                    progress=pr.current_credits,
+                    target=pr.target_credits,
+                    was_new_credit=was_new,
+                    is_completed=is_completed,
+                )
+            else:
+                pr_delta = ParentalReviewDelta(
+                    review_id=pr.id,
+                    progress=pr.current_credits,
+                    target=pr.target_credits,
+                    was_new_credit=False,
+                    is_completed=pr.status == "completed",
+                )
+
     db.commit()
 
     return (
@@ -623,6 +700,7 @@ def submit_answer(
             explanation=item.explanation,
         ),
         reward_delta,
+        pr_delta,
     )
 
 
@@ -700,3 +778,40 @@ def get_next_question_item(
         if seen[item_id] > answer_counts.get(item_id, 0):
             return db.query(Item).filter(Item.id == item_id).first()
     return None
+
+
+def build_question_response(
+    item: Item, index: int, total: int, tts_lang: str | None = None
+) -> "QuestionResponse":
+    """Build a QuestionResponse from an Item for child-facing endpoints.
+
+    This is the single source-of-truth for converting an ORM Item into
+    the API response shape — used by both the lessons and parental-reviews
+    routers to avoid duplication.
+
+    Args:
+        item: The Item ORM object.
+        index: 0-based question index within the session.
+        total: Total number of questions in the session.
+        tts_lang: Optional TTS language override (from the parent package).
+
+    Returns:
+        A QuestionResponse Pydantic model ready for serialisation.
+    """
+    from app.schemas.package import ImageData
+    from app.schemas.session import QuestionResponse
+
+    image = None
+    if item.image_svg:
+        image = ImageData(type="svg", svg=item.image_svg, alt=item.image_alt)
+    return QuestionResponse(
+        item_id=item.id,
+        question_index=index,
+        total_questions=total,
+        activity_type=item.activity_type,
+        question=item.question,
+        answer_data=get_child_answer_data(item),
+        hint=item.hint,
+        tts_lang=tts_lang,
+        image=image,
+    )

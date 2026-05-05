@@ -17,6 +17,7 @@ import SubjectLessonPage from "./pages/SubjectLessonPage";
 import HeroWalkPage from "./pages/HeroWalkPage";
 import FarmageddonPage from "./pages/FarmageddonPage";
 import ArenaBattlePage from "./pages/ArenaBattlePage";
+import ParentalReviewPage from "./pages/ParentalReviewPage";
 import "./styles/global.css";
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ function AppRoutes() {
             <Route path="/" element={<ChildHome />} />
             <Route path="/lesson/subject/:subject" element={<SubjectLessonPage />} />
             <Route path="/lesson/:packageId" element={<LessonPage />} />
+            <Route path="/parental-review/:reviewId" element={<ParentalReviewPage />} />
             <Route path="/games/hero-walk" element={<HeroWalkPage />} />
             <Route path="/games/farmageddon" element={<FarmageddonPage />} />
             <Route path="/games/arena-battle" element={<ArenaBattlePage />} />
