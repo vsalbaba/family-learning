@@ -29,6 +29,14 @@ export interface RewardInfo {
   tokens_suppressed: boolean;
 }
 
+export interface ParentalReviewInfo {
+  review_id: number;
+  progress: number;
+  target: number;
+  was_new_credit: boolean;
+  is_completed: boolean;
+}
+
 export interface AnswerResponse {
   is_correct: boolean;
   correct_answer: string;
@@ -36,6 +44,7 @@ export interface AnswerResponse {
   explanation: string | null;
   next_question: Question | null;
   reward: RewardInfo | null;
+  parental_review: ParentalReviewInfo | null;
 }
 
 export interface LessonStartResponse {

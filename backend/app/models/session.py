@@ -35,6 +35,11 @@ class LearningSession(Base):
     item_ids: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     extension_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Optional link to a parental review assignment
+    parental_review_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("parental_review.id"), nullable=True
+    )
+
     answers: Mapped[list["Answer"]] = relationship(
         "Answer", back_populates="session", cascade="all, delete-orphan"
     )

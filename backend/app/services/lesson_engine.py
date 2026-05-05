@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models.package import Item, Package
+from app.models.parental_review import ParentalReview, ParentalReviewCredit
 from app.models.review import ReviewState
 from app.models.session import Answer, LearningSession
 from app.models.user import User
@@ -86,6 +87,15 @@ class Feedback:
     is_correct: bool
     correct_answer: str  # JSON string
     explanation: str | None
+
+
+@dataclass
+class ParentalReviewDelta:
+    review_id: int
+    progress: int
+    target: int
+    was_new_credit: bool
+    is_completed: bool
 
 
 def _normalize(text: str) -> str:
@@ -532,7 +542,7 @@ def submit_answer(
     given_answer: str,
     response_time_ms: int | None,
     child_user: User | None = None,
-) -> tuple[Feedback, RewardDelta | None]:
+) -> tuple[Feedback, RewardDelta | None, ParentalReviewDelta | None]:
     """Submit an answer for a question in an active session.
 
     Checks correctness, records the answer, updates spaced repetition
@@ -548,7 +558,7 @@ def submit_answer(
         child_user: Optional User object for reward tracking.
 
     Returns:
-        Tuple of (Feedback, RewardDelta or None).
+        Tuple of (Feedback, RewardDelta or None, ParentalReviewDelta or None).
 
     Raises:
         ValueError: If the session is finished, item not found, or
@@ -614,6 +624,44 @@ def submit_answer(
             child_user, is_correct, token_eligible=token_eligible,
         )
 
+    # Handle parental review credit
+    pr_delta: ParentalReviewDelta | None = None
+    if session.parental_review_id is not None and is_correct:
+        pr = db.query(ParentalReview).filter(
+            ParentalReview.id == session.parental_review_id
+        ).first()
+        if pr and pr.status == "active":
+            credit = ParentalReviewCredit(
+                review_id=pr.id,
+                session_id=session.id,
+                item_id=item_id,
+            )
+            db.add(credit)
+            pr.current_credits += 1
+            is_completed = pr.current_credits >= pr.target_credits
+            if is_completed:
+                pr.status = "completed"
+                pr.completed_at = datetime.now(timezone.utc)
+            pr_delta = ParentalReviewDelta(
+                review_id=pr.id,
+                progress=pr.current_credits,
+                target=pr.target_credits,
+                was_new_credit=True,
+                is_completed=is_completed,
+            )
+    elif session.parental_review_id is not None:
+        pr = db.query(ParentalReview).filter(
+            ParentalReview.id == session.parental_review_id
+        ).first()
+        if pr:
+            pr_delta = ParentalReviewDelta(
+                review_id=pr.id,
+                progress=pr.current_credits,
+                target=pr.target_credits,
+                was_new_credit=False,
+                is_completed=pr.status == "completed",
+            )
+
     db.commit()
 
     return (
@@ -623,6 +671,7 @@ def submit_answer(
             explanation=item.explanation,
         ),
         reward_delta,
+        pr_delta,
     )
 
 

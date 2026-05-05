@@ -60,6 +60,15 @@ class AnswerResponse(BaseModel):
     explanation: str | None = None
     next_question: QuestionResponse | None = None  # None when lesson is done
     reward: RewardInfo | None = None
+    parental_review: "ParentalReviewInfo | None" = None
+
+
+class ParentalReviewInfo(BaseModel):
+    review_id: int
+    progress: int
+    target: int
+    was_new_credit: bool
+    is_completed: bool
 
 
 class LessonSummaryResponse(BaseModel):

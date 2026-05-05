@@ -20,6 +20,7 @@ from app.schemas.session import (
     AnswerResponse,
     LessonStartRequest,
     LessonSummaryResponse,
+    ParentalReviewInfo,
     QuestionResponse,
     RewardInfo,
 )
@@ -187,7 +188,7 @@ def lesson_answer(
         raise HTTPException(status_code=403, detail="Toto není tvoje lekce")
 
     try:
-        feedback, reward_delta = submit_answer(
+        feedback, reward_delta, pr_delta = submit_answer(
             db, session, req.item_id, req.given_answer, req.response_time_ms,
             child_user=user,
         )
@@ -216,6 +217,7 @@ def lesson_answer(
         explanation=feedback.explanation,
         next_question=next_question,
         reward=RewardInfo(**vars(reward_delta)) if reward_delta else None,
+        parental_review=ParentalReviewInfo(**vars(pr_delta)) if pr_delta else None,
     )
 
 
