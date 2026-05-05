@@ -207,18 +207,16 @@ def next_batch(
             existing_session = None
 
     if not existing_session:
-        question_count = req.question_count
-
         if review.package_id:
             pkg = db.query(Package).filter(Package.id == review.package_id).first()
             if not pkg or pkg.status != "published":
                 raise HTTPException(status_code=400, detail="Balíček není dostupný")
             selected = build_lesson_item_sequence(
-                db, user.id, review.package_id, question_count
+                db, user.id, review.package_id, req.question_count
             )
         else:
             selected = build_subject_lesson_sequence(
-                db, user.id, review.subject_id, question_count, grade=review.grade
+                db, user.id, review.subject_id, req.question_count, grade=review.grade
             )
 
         if not selected:

@@ -632,20 +632,30 @@ def submit_answer(
         ).first()
         if pr:
             if is_correct and pr.status == "active":
-                # Only count each item once per review (no duplicate credits)
+                # Only count each item once per review (no duplicate credits).
+                # The unique constraint on (review_id, item_id) is the definitive
+                # guard; the pre-check avoids unnecessary INTEGRITYERRORs in the
+                # common non-concurrent case.
                 existing_credit = db.query(ParentalReviewCredit).filter(
                     ParentalReviewCredit.review_id == pr.id,
                     ParentalReviewCredit.item_id == item_id,
                 ).first()
                 was_new = existing_credit is None
                 if was_new:
-                    credit = ParentalReviewCredit(
-                        review_id=pr.id,
-                        session_id=session.id,
-                        item_id=item_id,
-                    )
-                    db.add(credit)
-                    pr.current_credits += 1
+                    from sqlalchemy.exc import IntegrityError
+                    try:
+                        credit = ParentalReviewCredit(
+                            review_id=pr.id,
+                            session_id=session.id,
+                            item_id=item_id,
+                        )
+                        db.add(credit)
+                        db.flush()  # surface constraint violations before commit
+                        pr.current_credits += 1
+                    except IntegrityError:
+                        # Another concurrent request already inserted this credit
+                        db.rollback()
+                        was_new = False
                 is_completed = pr.current_credits >= pr.target_credits
                 if is_completed and pr.status == "active":
                     pr.status = "completed"
