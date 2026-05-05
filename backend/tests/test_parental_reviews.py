@@ -13,10 +13,11 @@ from app.models.user import User
 
 def _create_review(db_session, parent_user, child_user, published_package, **kwargs):
     """Create a ParentalReview for testing. Shared across test classes."""
+    pkg_ids = kwargs.get("package_ids", [published_package.id])
     review = ParentalReview(
         parent_id=parent_user.id,
         child_id=child_user.id,
-        package_id=published_package.id,
+        package_ids=json.dumps(pkg_ids),
         target_credits=kwargs.get("target_credits", 20),
         status=kwargs.get("status", "active"),
     )
@@ -66,7 +67,7 @@ class TestCreateReview:
             "/api/parental-reviews",
             json={
                 "child_id": child_user.id,
-                "package_id": published_package.id,
+                "package_ids": [published_package.id],
                 "target_credits": 10,
             },
             headers=auth_headers_parent,
@@ -76,14 +77,14 @@ class TestCreateReview:
         assert data["status"] == "active"
         assert data["target_credits"] == 10
         assert data["current_credits"] == 0
-        assert data["package_id"] == published_package.id
+        assert data["package_ids"] == [published_package.id]
 
     def test_child_cannot_create_review(
         self, client, auth_headers_child, child_user, published_package
     ):
         resp = client.post(
             "/api/parental-reviews",
-            json={"child_id": child_user.id, "package_id": published_package.id},
+            json={"child_id": child_user.id, "package_ids": [published_package.id]},
             headers=auth_headers_child,
         )
         assert resp.status_code == 403
@@ -115,7 +116,7 @@ class TestCreateReview:
 
         resp = client.post(
             "/api/parental-reviews",
-            json={"child_id": other_child.id, "package_id": published_package.id},
+            json={"child_id": other_child.id, "package_ids": [published_package.id]},
             headers=auth_headers_parent,
         )
         assert resp.status_code == 404
@@ -129,7 +130,7 @@ class TestListReviews:
         review = ParentalReview(
             parent_id=parent_user.id,
             child_id=child_user.id,
-            package_id=published_package.id,
+            package_ids=json.dumps([published_package.id]),
             target_credits=15,
         )
         db_session.add(review)
@@ -150,7 +151,7 @@ class TestCancelReview:
         review = ParentalReview(
             parent_id=parent_user.id,
             child_id=child_user.id,
-            package_id=published_package.id,
+            package_ids=json.dumps([published_package.id]),
             target_credits=10,
         )
         db_session.add(review)
@@ -170,7 +171,7 @@ class TestCancelReview:
         review = ParentalReview(
             parent_id=parent_user.id,
             child_id=child_user.id,
-            package_id=published_package.id,
+            package_ids=json.dumps([published_package.id]),
             target_credits=10,
             status="cancelled",
         )
@@ -357,7 +358,7 @@ class TestListChildReviews:
         review = ParentalReview(
             parent_id=parent_user.id,
             child_id=child_user.id,
-            package_id=published_package.id,
+            package_ids=json.dumps([published_package.id]),
             target_credits=10,
         )
         db_session.add(review)
@@ -538,6 +539,85 @@ class TestReviewCompletion:
         assert "splněno" in nb_resp.json()["detail"]
 
 
+class TestMultiPackageReview:
+    """Tests for creating and using reviews with multiple packages."""
+
+    def _make_second_package(self, db_session, parent_user):
+        from app.models.package import Item, Package
+        from app.models.subject import Subject
+        nezarazeno = db_session.query(Subject).filter_by(slug="nezarazeno").one()
+        pkg = Package(
+            name="Second Test Package",
+            subject_id=nezarazeno.id,
+            status="published",
+            created_by=parent_user.id,
+            raw_json="{}",
+        )
+        db_session.add(pkg)
+        db_session.flush()
+        item = Item(
+            package_id=pkg.id,
+            sort_order=0,
+            activity_type="flashcard",
+            question="Second pkg question",
+            answer_data=json.dumps({"front": "Q", "back": "A"}),
+        )
+        db_session.add(item)
+        db_session.commit()
+        db_session.refresh(pkg)
+        return pkg
+
+    def test_create_review_multiple_packages(
+        self, client, auth_headers_parent, child_user, published_package, db_session,
+        parent_user,
+    ):
+        pkg2 = self._make_second_package(db_session, parent_user)
+        resp = client.post(
+            "/api/parental-reviews",
+            json={
+                "child_id": child_user.id,
+                "package_ids": [published_package.id, pkg2.id],
+                "target_credits": 10,
+            },
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert set(data["package_ids"]) == {published_package.id, pkg2.id}
+
+    def test_next_batch_multi_package(
+        self, client, auth_headers_child, child_user, published_package, db_session,
+        parent_user,
+    ):
+        pkg2 = self._make_second_package(db_session, parent_user)
+        review = _create_review(
+            db_session, parent_user, child_user, published_package,
+            package_ids=[published_package.id, pkg2.id],
+        )
+
+        resp = client.post(
+            f"/api/parental-reviews/{review.id}/next-batch",
+            json={},
+            headers=auth_headers_child,
+        )
+        assert resp.status_code == 200
+        assert "session_id" in resp.json()
+
+    def test_create_review_empty_package_ids(
+        self, client, auth_headers_parent, child_user,
+    ):
+        resp = client.post(
+            "/api/parental-reviews",
+            json={
+                "child_id": child_user.id,
+                "package_ids": [],
+                "target_credits": 10,
+            },
+            headers=auth_headers_parent,
+        )
+        assert resp.status_code == 422
+
+
 class TestCancelSessionCleanup:
     """Tests that cancelling a review closes its linked open sessions."""
 
@@ -548,7 +628,7 @@ class TestCancelSessionCleanup:
         review = ParentalReview(
             parent_id=parent_user.id,
             child_id=child_user.id,
-            package_id=published_package.id,
+            package_ids=json.dumps([published_package.id]),
             target_credits=20,
         )
         db_session.add(review)

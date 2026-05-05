@@ -2,7 +2,7 @@ export interface ParentalReview {
   id: number;
   parent_id: number;
   child_id: number;
-  package_id: number | null;
+  package_ids: number[] | null;
   subject_id: number | null;
   grade: number | null;
   target_credits: number;
@@ -24,7 +24,7 @@ export interface NextBatchResponse {
 
 export interface ParentalReviewCreate {
   child_id: number;
-  package_id?: number;
+  package_ids?: number[];
   subject_id?: number;
   grade?: number | null;
   target_credits?: number;

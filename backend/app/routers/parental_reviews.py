@@ -23,6 +23,7 @@ from app.schemas.parental_review import (
 )
 from app.services.lesson_engine import (
     build_lesson_item_sequence,
+    build_multi_package_lesson_sequence,
     build_question_response,
     build_subject_lesson_sequence,
     get_next_question_item,
@@ -51,12 +52,18 @@ def create_review(
             detail="Dítě nenalezeno",
         )
 
-    if req.package_id:
-        pkg = db.query(Package).filter(Package.id == req.package_id).first()
-        if not pkg or pkg.status != "published":
+    if req.package_ids:
+        pkgs = (
+            db.query(Package)
+            .filter(Package.id.in_(req.package_ids), Package.status == "published")
+            .all()
+        )
+        found_ids = {p.id for p in pkgs}
+        missing = [pid for pid in req.package_ids if pid not in found_ids]
+        if missing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Balíček nenalezen nebo není publikován",
+                detail=f"Balíček nenalezen nebo není publikován: {missing}",
             )
     else:
         subj = db.query(Subject).filter(Subject.id == req.subject_id).first()
@@ -69,7 +76,7 @@ def create_review(
     review = ParentalReview(
         parent_id=user.id,
         child_id=req.child_id,
-        package_id=req.package_id,
+        package_ids=json.dumps(req.package_ids) if req.package_ids else None,
         subject_id=req.subject_id,
         grade=req.grade,
         target_credits=req.target_credits,
@@ -207,12 +214,17 @@ def next_batch(
             existing_session = None
 
     if not existing_session:
-        if review.package_id:
-            pkg = db.query(Package).filter(Package.id == review.package_id).first()
-            if not pkg or pkg.status != "published":
+        if review.package_ids:
+            pkg_ids = json.loads(review.package_ids)
+            unpublished = (
+                db.query(Package.id)
+                .filter(Package.id.in_(pkg_ids), Package.status != "published")
+                .all()
+            )
+            if unpublished:
                 raise HTTPException(status_code=400, detail="Balíček není dostupný")
-            selected = build_lesson_item_sequence(
-                db, user.id, review.package_id, req.question_count
+            selected = build_multi_package_lesson_sequence(
+                db, user.id, pkg_ids, req.question_count
             )
         else:
             selected = build_subject_lesson_sequence(
@@ -238,7 +250,7 @@ def next_batch(
         item_ids = [item.id for item in selected]
         session = LearningSession(
             child_id=user.id,
-            package_id=review.package_id,
+            package_id=None,
             subject_id=review.subject_id,
             grade=review.grade,
             total_questions=len(selected),

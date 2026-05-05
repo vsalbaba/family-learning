@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -21,10 +21,11 @@ class ParentalReview(Base):
         Integer, ForeignKey("user.id"), nullable=False
     )
 
-    # Scope: exactly one of package_id or subject_id is set
+    # Scope: package_ids (JSON list) or subject_id; legacy package_id kept for compat
     package_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("package.id"), nullable=True
     )
+    package_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     subject_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("subject.id"), nullable=True
     )

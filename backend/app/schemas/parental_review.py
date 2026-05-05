@@ -1,13 +1,14 @@
+import json
 from datetime import datetime
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.session import QuestionResponse, ParentalReviewInfo  # noqa: F401 – re-exported
 
 
 class ParentalReviewCreate(BaseModel):
     child_id: int
-    package_id: int | None = None
+    package_ids: list[int] | None = None
     subject_id: int | None = None
     grade: int | None = None
     target_credits: int = Field(default=20, ge=1, le=500)
@@ -15,12 +16,12 @@ class ParentalReviewCreate(BaseModel):
 
     @model_validator(mode="after")
     def exactly_one_scope(self):
-        has_pkg = bool(self.package_id)
+        has_pkgs = bool(self.package_ids)
         has_subj = bool(self.subject_id)
-        if has_pkg and has_subj:
-            raise ValueError("Provide package_id or subject_id, not both")
-        if not has_pkg and not has_subj:
-            raise ValueError("Provide package_id or subject_id")
+        if has_pkgs and has_subj:
+            raise ValueError("Provide package_ids or subject_id, not both")
+        if not has_pkgs and not has_subj:
+            raise ValueError("Provide package_ids or subject_id")
         return self
 
 
@@ -28,7 +29,7 @@ class ParentalReviewResponse(BaseModel):
     id: int
     parent_id: int
     child_id: int
-    package_id: int | None = None
+    package_ids: list[int] | None = None
     subject_id: int | None = None
     grade: int | None = None
     target_credits: int
@@ -38,6 +39,13 @@ class ParentalReviewResponse(BaseModel):
     created_at: datetime
     completed_at: datetime | None = None
     cancelled_at: datetime | None = None
+
+    @field_validator("package_ids", mode="before")
+    @classmethod
+    def _parse_package_ids(cls, v):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
 
     model_config = {"from_attributes": True}
 

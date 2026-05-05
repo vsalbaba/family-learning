@@ -427,6 +427,19 @@ def build_subject_lesson_sequence(
     )
 
 
+def build_multi_package_lesson_sequence(
+    db: Session, child_id: int, package_ids: list[int], question_count: int,
+) -> list[Item]:
+    """Select and order items for a lesson from multiple explicit packages."""
+    items = db.query(Item).filter(Item.package_id.in_(package_ids)).all()
+    if not items:
+        return []
+    label = f"pkgs={package_ids}"
+    return _build_from_items(
+        db, child_id, items, question_count, log_label=label,
+    )
+
+
 def start_lesson(
     db: Session, child_id: int, package_id: int, question_count: int,
     child_user: User | None = None,

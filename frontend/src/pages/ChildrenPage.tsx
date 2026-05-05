@@ -39,10 +39,11 @@ export default function ChildrenPage() {
   const [reviewsByChild, setReviewsByChild] = useState<Map<number, ParentalReview[]>>(new Map());
   const [showReviewForm, setShowReviewForm] = useState<number | null>(null);
   const [reviewForm, setReviewForm] = useState<{
-    packageId: string;
+    selectedPackageIds: number[];
+    pendingPackageId: string;
     targetCredits: string;
     note: string;
-  }>({ packageId: "", targetCredits: "20", note: "" });
+  }>({ selectedPackageIds: [], pendingPackageId: "", targetCredits: "20", note: "" });
 
   useEffect(() => {
     listChildren()
@@ -129,15 +130,31 @@ export default function ChildrenPage() {
 
   function openReviewForm(childId: number) {
     setShowReviewForm(childId);
-    setReviewForm({ packageId: "", targetCredits: "20", note: "" });
+    setReviewForm({ selectedPackageIds: [], pendingPackageId: "", targetCredits: "20", note: "" });
+  }
+
+  function addPackageToReview() {
+    const pkgId = parseInt(reviewForm.pendingPackageId);
+    if (!pkgId || reviewForm.selectedPackageIds.includes(pkgId)) return;
+    setReviewForm({
+      ...reviewForm,
+      selectedPackageIds: [...reviewForm.selectedPackageIds, pkgId],
+      pendingPackageId: "",
+    });
+  }
+
+  function removePackageFromReview(pkgId: number) {
+    setReviewForm({
+      ...reviewForm,
+      selectedPackageIds: reviewForm.selectedPackageIds.filter((id) => id !== pkgId),
+    });
   }
 
   async function handleCreateReview(childId: number) {
-    const pkgId = parseInt(reviewForm.packageId);
-    if (!pkgId) return;
+    if (reviewForm.selectedPackageIds.length === 0) return;
     const data: ParentalReviewCreate = {
       child_id: childId,
-      package_id: pkgId,
+      package_ids: reviewForm.selectedPackageIds,
       target_credits: parseInt(reviewForm.targetCredits) || 20,
       note: reviewForm.note.trim() || null,
     };
@@ -328,20 +345,42 @@ export default function ChildrenPage() {
 
                 {showReviewForm === child.id && (
                   <div className="review-form">
-                    <label>
-                      Balíček
+                    <label>Balíčky</label>
+                    <div className="review-form__pkg-selector">
                       <select
-                        value={reviewForm.packageId}
-                        onChange={(e) => setReviewForm({ ...reviewForm, packageId: e.target.value })}
+                        value={reviewForm.pendingPackageId}
+                        onChange={(e) => setReviewForm({ ...reviewForm, pendingPackageId: e.target.value })}
                       >
                         <option value="">— vyberte —</option>
-                        {packages.map((pkg) => (
-                          <option key={pkg.id} value={pkg.id}>
-                            {pkg.name}{pkg.grade != null ? ` (${pkg.grade}. r.)` : ""}
-                          </option>
-                        ))}
+                        {packages
+                          .filter((pkg) => !reviewForm.selectedPackageIds.includes(pkg.id))
+                          .map((pkg) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name}{pkg.grade != null ? ` (${pkg.grade}. r.)` : ""}
+                            </option>
+                          ))}
                       </select>
-                    </label>
+                      <button
+                        className="btn btn-small btn-secondary"
+                        onClick={addPackageToReview}
+                        disabled={!reviewForm.pendingPackageId}
+                      >
+                        Přidat
+                      </button>
+                    </div>
+                    {reviewForm.selectedPackageIds.length > 0 && (
+                      <div className="review-form__pkg-chips">
+                        {reviewForm.selectedPackageIds.map((pkgId) => {
+                          const pkg = packages.find((p) => p.id === pkgId);
+                          return (
+                            <span key={pkgId} className="review-form__pkg-chip">
+                              {pkg ? pkg.name : `#${pkgId}`}
+                              <button onClick={() => removePackageFromReview(pkgId)}>&times;</button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     <label>
                       Cíl (počet otázek zvládnuto)
                       <input
@@ -365,7 +404,7 @@ export default function ChildrenPage() {
                       <button
                         className="btn btn-small btn-primary"
                         onClick={() => handleCreateReview(child.id)}
-                        disabled={!reviewForm.packageId}
+                        disabled={reviewForm.selectedPackageIds.length === 0}
                       >
                         Vytvořit
                       </button>
