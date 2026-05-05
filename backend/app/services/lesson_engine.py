@@ -644,17 +644,17 @@ def submit_answer(
                 if was_new:
                     from sqlalchemy.exc import IntegrityError
                     try:
+                        nested = db.begin_nested()
                         credit = ParentalReviewCredit(
                             review_id=pr.id,
                             session_id=session.id,
                             item_id=item_id,
                         )
                         db.add(credit)
-                        db.flush()  # surface constraint violations before commit
+                        db.flush()
                         pr.current_credits += 1
                     except IntegrityError:
-                        # Another concurrent request already inserted this credit
-                        db.rollback()
+                        nested.rollback()
                         was_new = False
                 is_completed = pr.current_credits >= pr.target_credits
                 if is_completed and pr.status == "active":

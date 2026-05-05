@@ -1,6 +1,7 @@
 """Tests for parental review endpoints, including /next-batch."""
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -8,6 +9,53 @@ from app.models.parental_review import ParentalReview
 from app.models.session import LearningSession
 from app.services.auth_service import create_token, hash_pin
 from app.models.user import User
+
+
+def _create_review(db_session, parent_user, child_user, published_package, **kwargs):
+    """Create a ParentalReview for testing. Shared across test classes."""
+    review = ParentalReview(
+        parent_id=parent_user.id,
+        child_id=child_user.id,
+        package_id=published_package.id,
+        target_credits=kwargs.get("target_credits", 20),
+        status=kwargs.get("status", "active"),
+    )
+    db_session.add(review)
+    db_session.commit()
+    db_session.refresh(review)
+    return review
+
+
+def _make_correct_answer(question: dict, db_session=None) -> str:
+    """Build a JSON answer string that is guaranteed to be correct.
+
+    For flashcard, no DB access is needed. For other types, we must read the
+    item's raw answer_data from the DB since the child-facing answer_data is
+    sanitized (correct answers stripped).
+    """
+    from app.models.package import Item
+
+    at = question["activity_type"]
+    if at == "flashcard":
+        return json.dumps({"knew": True})
+
+    assert db_session is not None, "db_session required for non-flashcard answers"
+    item = db_session.query(Item).filter(Item.id == question["item_id"]).one()
+    ad = json.loads(item.answer_data)
+
+    if at == "multiple_choice":
+        return json.dumps({"selected": ad["correct"]})
+    if at == "true_false":
+        return json.dumps({"answer": ad["correct"]})
+    if at == "fill_in":
+        return json.dumps({"text": ad["accepted_answers"][0]})
+    if at == "matching":
+        return json.dumps({"pairs": ad["pairs"]})
+    if at == "ordering":
+        return json.dumps({"order": ad["correct_order"]})
+    if at == "math_input":
+        return json.dumps({"value": ad["correct_value"]})
+    raise ValueError(f"Unknown activity type: {at}")
 
 
 class TestCreateReview:
@@ -137,24 +185,11 @@ class TestCancelReview:
 
 
 class TestNextBatch:
-    def _create_review(self, db_session, parent_user, child_user, published_package, **kwargs):
-        review = ParentalReview(
-            parent_id=parent_user.id,
-            child_id=child_user.id,
-            package_id=published_package.id,
-            target_credits=kwargs.get("target_credits", 20),
-            status=kwargs.get("status", "active"),
-        )
-        db_session.add(review)
-        db_session.commit()
-        db_session.refresh(review)
-        return review
-
     def test_next_batch_creates_new_session(
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(db_session, parent_user, child_user, published_package)
+        review = _create_review(db_session, parent_user, child_user, published_package)
 
         resp = client.post(
             f"/api/parental-reviews/{review.id}/next-batch",
@@ -180,7 +215,7 @@ class TestNextBatch:
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(db_session, parent_user, child_user, published_package)
+        review = _create_review(db_session, parent_user, child_user, published_package)
 
         # First call — creates session
         resp1 = client.post(
@@ -204,7 +239,7 @@ class TestNextBatch:
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(
+        review = _create_review(
             db_session, parent_user, child_user, published_package,
             status="completed",
         )
@@ -221,7 +256,7 @@ class TestNextBatch:
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(
+        review = _create_review(
             db_session, parent_user, child_user, published_package,
             status="cancelled",
         )
@@ -246,7 +281,7 @@ class TestNextBatch:
         )
         unrelated_session_id = resp.json()["session_id"]
 
-        review = self._create_review(db_session, parent_user, child_user, published_package)
+        review = _create_review(db_session, parent_user, child_user, published_package)
 
         # Calling /next-batch should close the unrelated session
         client.post(
@@ -265,7 +300,7 @@ class TestNextBatch:
         self, client, auth_headers_parent, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(db_session, parent_user, child_user, published_package)
+        review = _create_review(db_session, parent_user, child_user, published_package)
 
         resp = client.post(
             f"/api/parental-reviews/{review.id}/next-batch",
@@ -286,7 +321,7 @@ class TestNextBatch:
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(
+        review = _create_review(
             db_session, parent_user, child_user, published_package, target_credits=5
         )
 
@@ -299,8 +334,7 @@ class TestNextBatch:
         session_id = data["session_id"]
         question = data["question"]
 
-        # Submit a correct flashcard answer (most likely to pass)
-        answer = json.dumps({"knew": True}) if question["activity_type"] == "flashcard" else json.dumps({"answer": True})
+        answer = _make_correct_answer(question, db_session)
         resp = client.post(
             f"/api/lessons/{session_id}/answer",
             json={"item_id": question["item_id"], "given_answer": answer},
@@ -357,19 +391,6 @@ class TestListChildReviews:
 class TestCreditDeduplification:
     """Tests for unique-credit logic: each (review, item) pair is counted once."""
 
-    def _create_review(self, db_session, parent_user, child_user, published_package, **kwargs):
-        review = ParentalReview(
-            parent_id=parent_user.id,
-            child_id=child_user.id,
-            package_id=published_package.id,
-            target_credits=kwargs.get("target_credits", 20),
-            status=kwargs.get("status", "active"),
-        )
-        db_session.add(review)
-        db_session.commit()
-        db_session.refresh(review)
-        return review
-
     def _get_batch_and_first_question(self, client, review_id, auth_headers_child):
         resp = client.post(
             f"/api/parental-reviews/{review_id}/next-batch",
@@ -380,18 +401,11 @@ class TestCreditDeduplification:
         data = resp.json()
         return data["session_id"], data["question"]
 
-    def _make_answer(self, activity_type: str) -> str:
-        if activity_type == "flashcard":
-            return json.dumps({"knew": True})
-        if activity_type == "true_false":
-            return json.dumps({"answer": True})
-        return json.dumps({"answer": "x"})
-
     def test_wrong_answer_does_not_increment_credits(
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
-        review = self._create_review(db_session, parent_user, child_user, published_package)
+        review = _create_review(db_session, parent_user, child_user, published_package)
         session_id, question = self._get_batch_and_first_question(
             client, review.id, auth_headers_child
         )
@@ -417,7 +431,7 @@ class TestCreditDeduplification:
         parent_user,
     ):
         """Answering the same item correctly in two different sessions counts only once."""
-        review = self._create_review(
+        review = _create_review(
             db_session, parent_user, child_user, published_package, target_credits=50
         )
 
@@ -426,8 +440,7 @@ class TestCreditDeduplification:
             client, review.id, auth_headers_child
         )
         item_id = question["item_id"]
-        activity_type = question["activity_type"]
-        correct_answer = self._make_answer(activity_type)
+        correct_answer = _make_correct_answer(question, db_session)
 
         resp1 = client.post(
             f"/api/lessons/{session_id}/answer",
@@ -435,20 +448,17 @@ class TestCreditDeduplification:
             headers=auth_headers_child,
         )
         assert resp1.status_code == 200
-        pr1 = resp1.json().get("parental_review", {})
-        progress_after_first = pr1.get("progress", 0)
-        was_new_first = pr1.get("was_new_credit", False)
+        pr1 = resp1.json()["parental_review"]
+        assert pr1["was_new_credit"] is True
+        progress_after_first = pr1["progress"]
 
         # Forcibly finish the current session so we can start a new batch
-        from app.models.session import LearningSession
-        from datetime import datetime, timezone
         db_session.query(LearningSession).filter(
             LearningSession.id == session_id
         ).update({"finished_at": datetime.now(timezone.utc)})
         db_session.commit()
 
-        # Second batch — forcibly put the same item_id first
-        # (We inject it directly to ensure same item is tested)
+        # Second batch — inject session with the same item_id to guarantee dedup test
         second_session = LearningSession(
             child_id=child_user.id,
             package_id=published_package.id,
@@ -467,39 +477,20 @@ class TestCreditDeduplification:
             headers=auth_headers_child,
         )
         assert resp2.status_code == 200
-        pr2 = resp2.json().get("parental_review", {})
-        progress_after_second = pr2.get("progress", 0)
-
-        if was_new_first:
-            # First answer counted; second should not
-            assert progress_after_second == progress_after_first
-            assert pr2.get("was_new_credit") is False
-        # If the first answer also didn't count (wrong answer hit),
-        # we at least verify no double-count occurred.
+        pr2 = resp2.json()["parental_review"]
+        assert pr2["progress"] == progress_after_first
+        assert pr2["was_new_credit"] is False
 
 
 class TestReviewCompletion:
     """Tests for review completion when credits reach target."""
-
-    def _create_review(self, db_session, parent_user, child_user, published_package, **kwargs):
-        review = ParentalReview(
-            parent_id=parent_user.id,
-            child_id=child_user.id,
-            package_id=published_package.id,
-            target_credits=kwargs.get("target_credits", 1),
-            status=kwargs.get("status", "active"),
-        )
-        db_session.add(review)
-        db_session.commit()
-        db_session.refresh(review)
-        return review
 
     def test_review_completes_when_target_reached(
         self, client, auth_headers_child, child_user, published_package, db_session,
         parent_user,
     ):
         """When a correct answer pushes credits to target, review becomes completed."""
-        review = self._create_review(
+        review = _create_review(
             db_session, parent_user, child_user, published_package, target_credits=1
         )
 
@@ -513,12 +504,7 @@ class TestReviewCompletion:
         session_id = data["session_id"]
         question = data["question"]
 
-        # Submit a flashcard "knew=True" answer (always correct)
-        if question["activity_type"] == "flashcard":
-            answer = json.dumps({"knew": True})
-        else:
-            answer = json.dumps({"answer": True})  # may or may not be correct
-
+        answer = _make_correct_answer(question, db_session)
         resp = client.post(
             f"/api/lessons/{session_id}/answer",
             json={"item_id": question["item_id"], "given_answer": answer},
@@ -526,32 +512,30 @@ class TestReviewCompletion:
         )
         assert resp.status_code == 200
         ans = resp.json()
-        pr = ans.get("parental_review", {})
+        pr = ans["parental_review"]
 
-        if pr.get("was_new_credit"):
-            # Credit was awarded → should be completed now
-            assert pr["is_completed"] is True
-            db_session.expire_all()
-            db_session.refresh(review)
-            assert review.status == "completed"
-            assert review.completed_at is not None
+        assert pr["was_new_credit"] is True
+        assert pr["is_completed"] is True
+        db_session.expire_all()
+        db_session.refresh(review)
+        assert review.status == "completed"
+        assert review.completed_at is not None
 
-            # Session should also be closed
-            from app.models.session import LearningSession
-            sess = db_session.query(LearningSession).filter(
-                LearningSession.id == session_id
-            ).first()
-            db_session.expire(sess)
-            assert sess.finished_at is not None
+        # Session should also be closed
+        sess = db_session.query(LearningSession).filter(
+            LearningSession.id == session_id
+        ).first()
+        db_session.expire(sess)
+        assert sess.finished_at is not None
 
-            # next-batch should now return 400
-            nb_resp = client.post(
-                f"/api/parental-reviews/{review.id}/next-batch",
-                json={},
+        # next-batch should now return 400
+        nb_resp = client.post(
+            f"/api/parental-reviews/{review.id}/next-batch",
+            json={},
             headers=auth_headers_child,
-            )
-            assert nb_resp.status_code == 400
-            assert "splněno" in nb_resp.json()["detail"]
+        )
+        assert nb_resp.status_code == 400
+        assert "splněno" in nb_resp.json()["detail"]
 
 
 class TestCancelSessionCleanup:
