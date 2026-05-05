@@ -41,7 +41,7 @@ export default function ChildHome() {
         .then((reviews) => setActiveReviews(reviews.filter((r) => r.status === "active")))
         .catch(() => {});
     }
-  }, []);
+  }, [user]);
 
   async function playGame(path: string) {
     if (windowActive) {

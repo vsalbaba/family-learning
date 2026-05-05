@@ -61,7 +61,9 @@ export default function ParentalReviewRunner({ review }: Props) {
         }
       }
 
-      if (reviewCompleted || resp.parental_review?.is_completed) {
+      const justCompleted = resp.parental_review?.is_completed ?? false;
+
+      if (justCompleted) {
         // Review finished — show feedback then completed screen
         setFeedback(resp);
         setState("feedback");

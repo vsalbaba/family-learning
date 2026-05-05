@@ -626,41 +626,38 @@ def submit_answer(
 
     # Handle parental review credit
     pr_delta: ParentalReviewDelta | None = None
-    if session.parental_review_id is not None and is_correct:
-        pr = db.query(ParentalReview).filter(
-            ParentalReview.id == session.parental_review_id
-        ).first()
-        if pr and pr.status == "active":
-            credit = ParentalReviewCredit(
-                review_id=pr.id,
-                session_id=session.id,
-                item_id=item_id,
-            )
-            db.add(credit)
-            pr.current_credits += 1
-            is_completed = pr.current_credits >= pr.target_credits
-            if is_completed:
-                pr.status = "completed"
-                pr.completed_at = datetime.now(timezone.utc)
-            pr_delta = ParentalReviewDelta(
-                review_id=pr.id,
-                progress=pr.current_credits,
-                target=pr.target_credits,
-                was_new_credit=True,
-                is_completed=is_completed,
-            )
-    elif session.parental_review_id is not None:
+    if session.parental_review_id is not None:
         pr = db.query(ParentalReview).filter(
             ParentalReview.id == session.parental_review_id
         ).first()
         if pr:
-            pr_delta = ParentalReviewDelta(
-                review_id=pr.id,
-                progress=pr.current_credits,
-                target=pr.target_credits,
-                was_new_credit=False,
-                is_completed=pr.status == "completed",
-            )
+            if is_correct and pr.status == "active":
+                credit = ParentalReviewCredit(
+                    review_id=pr.id,
+                    session_id=session.id,
+                    item_id=item_id,
+                )
+                db.add(credit)
+                pr.current_credits += 1
+                is_completed = pr.current_credits >= pr.target_credits
+                if is_completed:
+                    pr.status = "completed"
+                    pr.completed_at = datetime.now(timezone.utc)
+                pr_delta = ParentalReviewDelta(
+                    review_id=pr.id,
+                    progress=pr.current_credits,
+                    target=pr.target_credits,
+                    was_new_credit=True,
+                    is_completed=is_completed,
+                )
+            else:
+                pr_delta = ParentalReviewDelta(
+                    review_id=pr.id,
+                    progress=pr.current_credits,
+                    target=pr.target_credits,
+                    was_new_credit=False,
+                    is_completed=pr.status == "completed",
+                )
 
     db.commit()
 
