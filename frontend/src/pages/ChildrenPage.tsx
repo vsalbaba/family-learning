@@ -15,6 +15,7 @@ import type { User } from "../types/user";
 import type { PackageSummary } from "../types/package";
 import type { ParentalReview, ParentalReviewCreate } from "../types/parentalReview";
 import TokenIcon from "../components/common/TokenIcon";
+import SearchableSelect from "../components/common/SearchableSelect";
 
 export default function ChildrenPage() {
   const navigate = useNavigate();
@@ -40,10 +41,9 @@ export default function ChildrenPage() {
   const [showReviewForm, setShowReviewForm] = useState<number | null>(null);
   const [reviewForm, setReviewForm] = useState<{
     selectedPackageIds: number[];
-    pendingPackageId: string;
     targetCredits: string;
     note: string;
-  }>({ selectedPackageIds: [], pendingPackageId: "", targetCredits: "20", note: "" });
+  }>({ selectedPackageIds: [], targetCredits: "20", note: "" });
 
   useEffect(() => {
     listChildren()
@@ -130,17 +130,7 @@ export default function ChildrenPage() {
 
   function openReviewForm(childId: number) {
     setShowReviewForm(childId);
-    setReviewForm({ selectedPackageIds: [], pendingPackageId: "", targetCredits: "20", note: "" });
-  }
-
-  function addPackageToReview() {
-    const pkgId = parseInt(reviewForm.pendingPackageId);
-    if (!pkgId || reviewForm.selectedPackageIds.includes(pkgId)) return;
-    setReviewForm({
-      ...reviewForm,
-      selectedPackageIds: [...reviewForm.selectedPackageIds, pkgId],
-      pendingPackageId: "",
-    });
+    setReviewForm({ selectedPackageIds: [], targetCredits: "20", note: "" });
   }
 
   function removePackageFromReview(pkgId: number) {
@@ -346,28 +336,6 @@ export default function ChildrenPage() {
                 {showReviewForm === child.id && (
                   <div className="review-form">
                     <label>Balíčky</label>
-                    <div className="review-form__pkg-selector">
-                      <select
-                        value={reviewForm.pendingPackageId}
-                        onChange={(e) => setReviewForm({ ...reviewForm, pendingPackageId: e.target.value })}
-                      >
-                        <option value="">— vyberte —</option>
-                        {packages
-                          .filter((pkg) => !reviewForm.selectedPackageIds.includes(pkg.id))
-                          .map((pkg) => (
-                            <option key={pkg.id} value={pkg.id}>
-                              {pkg.name}{pkg.grade != null ? ` (${pkg.grade}. r.)` : ""}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        className="btn btn-small btn-secondary"
-                        onClick={addPackageToReview}
-                        disabled={!reviewForm.pendingPackageId}
-                      >
-                        Přidat
-                      </button>
-                    </div>
                     {reviewForm.selectedPackageIds.length > 0 && (
                       <div className="review-form__pkg-chips">
                         {reviewForm.selectedPackageIds.map((pkgId) => {
@@ -381,6 +349,21 @@ export default function ChildrenPage() {
                         })}
                       </div>
                     )}
+                    <SearchableSelect
+                      options={packages
+                        .filter((pkg) => !reviewForm.selectedPackageIds.includes(pkg.id))
+                        .map((pkg) => ({
+                          id: pkg.id,
+                          label: pkg.name + (pkg.grade != null ? ` (${pkg.grade}. r.)` : ""),
+                        }))}
+                      placeholder="Hledat balíček…"
+                      onSelect={(opt) =>
+                        setReviewForm({
+                          ...reviewForm,
+                          selectedPackageIds: [...reviewForm.selectedPackageIds, opt.id],
+                        })
+                      }
+                    />
                     <label>
                       Cíl (počet otázek zvládnuto)
                       <input
